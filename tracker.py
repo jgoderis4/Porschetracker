@@ -584,7 +584,9 @@ def main():
     STATE_FILE.write_text(json.dumps(state, indent=1))
 
     uniek.sort(key=lambda c: -c["score"])
+    # ntfy-kanaal voor de pushknop: het gegenereerde dashboard blijft lokaal (niet in git), het template niet
     payload = {"bijgewerkt": now, "fouten": errors, "config": CONFIG, "autos": uniek, "markt": markt,
+               "ntfy_topic": ntfy_topic(),
                "verkocht": [dict(v, id=i) for i, v in sorted(verkocht.items(), key=lambda kv: kv[1]["weg_sinds"],
                                                                 reverse=True)],
                "waardecurve": waardecurve(staal) if staal else None}

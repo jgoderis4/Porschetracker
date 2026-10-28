@@ -8,7 +8,7 @@ Persoonlijke tool die 2x per dag zoekt naar tweedehands **Porsche 911 GTS en Tur
   prijshistoriek en een marktgrafiek per generatie. Favorieten, verbergen en eigen notities per auto.
 - **Bronbewaking:** waarschuwing als een site plots veel minder advertenties geeft (site gewijzigd?)
 - **Dubbels samengevoegd:** dezelfde auto op meerdere sites wordt één kaart met de laagste prijs
-- **Meldingen:** een venster op de Mac en een pushmelding op de gsm (via [ntfy](https://ntfy.sh)) bij een nieuwe topper of een prijsdaling
+- **Meldingen:** een venster op de Mac en een pushmelding op de gsm (via [ntfy](https://ntfy.sh)) bij een nieuwe topper of een prijsdaling; met de knop 📲 Push op een kaart stuur je zelf een auto door naar wie het kanaal volgt
 
 ## Installeren (macOS)
 

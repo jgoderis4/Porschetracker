@@ -28,6 +28,8 @@ of bij een prijsdaling ≥ `melding_bij_prijsdaling_pct`.
 Daarnaast een pushmelding naar de gsm via ntfy.sh (`push()` in tracker.py, één melding per auto, tik = advertentie).
 De geheime kanaalnaam staat in `~/Library/Application Support/porsche-tracker/ntfy_topic.txt` (nooit in de repo).
 Testen: `python3 tracker.py --test-melding` (Mac-venster + gsm).
+Manueel pushen: knop "📲 Push" op elke kaart in het dashboard stuurt de auto (+ optionele opmerking) naar het kanaal;
+het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerde dashboard (niet in het template/git).
 
 ## Keuzes & bewust niet
 

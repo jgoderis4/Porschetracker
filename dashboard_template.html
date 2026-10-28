@@ -263,6 +263,27 @@ function verkochtBlok() {
   for (const id of Object.keys(MIJN)) if (!bekend.has(id)) delete MIJN[id];
   try { localStorage.setItem(MIJN_KEY, JSON.stringify(MIJN)); } catch (e) {}
 }
+// Zelf een auto doorsturen naar de volgers van het ntfy-kanaal (zelfde opmaak als push_auto() in tracker.py)
+async function pushAuto(c, knop) {
+  const opmerking = prompt(`Push "${c.titel}" naar je volgers?\nOptioneel: een opmerking erbij.`, mijn(c.id).notitie || "");
+  if (opmerking === null) return;
+  const nl = n => Math.round(n).toLocaleString("nl-BE");
+  const regel = `${c.model} ${c.type} ${c.generatie} ${c.jaar}, ${nl(c.km)} km, €${nl(c.prijs)} – score ${c.score}`;
+  const allIn = `All-in ±€${nl(c.all_in)} (incl. BIV €${nl(c.biv)}${c.import_kosten ? ` + import €${nl(c.import_kosten)}` : ""}) · ${c.bron}`;
+  knop.disabled = true;
+  try {
+    const r = await fetch("https://ntfy.sh", {method: "POST", body: JSON.stringify({
+      topic: DATA.ntfy_topic, title: `Tip: ${c.model} ${c.type} ${c.generatie} – score ${c.score}`,
+      message: (opmerking.trim() ? opmerking.trim() + "\n\n" : "") + regel + "\n" + allIn,
+      click: c.url, priority: 4, tags: ["red_car", "point_right"]})});
+    if (!r.ok) throw new Error(r.status);
+    knop.textContent = "✓ Gepusht";
+  } catch (e) {
+    knop.textContent = "✕ Mislukt";
+    knop.disabled = false;
+    alert("Pushmelding mislukt: " + e.message);
+  }
+}
 const terugTag = m => m.terug && (Date.parse(DATA.bijgewerkt) - Date.parse(m.terug.op)) < 14 * 864e5
   ? `<span class="tag terug" title="Was verborgen aan ${fmt(m.terug.van)}">↺ TERUG: −${fmt(m.terug.van - m.terug.naar)}</span>` : "";
 
@@ -492,6 +513,7 @@ function render() {
         <div class="acts">
           <button data-act="fav" class="${m.fav ? "on" : ""}">${m.fav ? "★ Favoriet" : "☆ Favoriet"}</button>
           <button data-act="notitie" class="${m.notitie ? "on" : ""}">✎ Notitie</button>
+          ${DATA.ntfy_topic ? '<button data-act="push" title="Stuur deze auto naar iedereen die het ntfy-kanaal volgt">📲 Push</button>' : ""}
           <button data-act="verborgen">${m.verborgen ? "↺ Terugzetten" : "✕ Verbergen"}</button>
         </div>
         <div class="foot"><span>${esc(c.bron)} · ${esc(c.verkoper || "")}${c.plaats ? " · " + esc(c.plaats) : ""}</span>
@@ -526,6 +548,7 @@ if (!DATA) {
       t.focus();
       return;
     }
+    if (act === "push") return pushAuto(DATA.autos.find(c => c.id === id), knop);
     zetMijn(id, act, !mijn(id)[act]);
     if (act === "verborgen" && mijn(id).verborgen) {  // onthoud de prijs: zakt die later, dan komt de auto terug
       zetMijn(id, "verborgen_prijs", DATA.autos.find(c => c.id === id).prijs);
