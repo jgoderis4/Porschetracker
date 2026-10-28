@@ -10,6 +10,7 @@ Alleen standaardbibliotheek, werkt met de Python 3.9 die macOS meelevert.
 """
 import importlib
 import json
+import math
 import re
 import secrets
 import subprocess
@@ -65,12 +66,14 @@ def fetch_autoscout():
 
 def fetch_autoscout_zoek(zoek):
     params = {
-        "atype": "C", **zoek,
+        "atype": "C",
         "cy": ",".join(CONFIG["landen_autoscout"]),
         "kmto": CONFIG["max_km"], "priceto": CONFIG["max_prijs"],
         "fregfrom": CONFIG["vanaf_bouwjaar"], "ustate": "N,U",
         "sort": "age", "desc": "1",
+        **zoek,  # zoek kan een standaard overschrijven; None = parameter weglaten
     }
+    params = {k: v for k, v in params.items() if v is not None}
     cars, page = [], 1
     while page <= 10:
         url = "https://www.autoscout24.be/nl/lst/porsche?" + urllib.parse.urlencode({**params, "page": page})
@@ -379,6 +382,80 @@ def bron_bewaking(aantallen, historiek):
     return waarschuwingen
 
 
+def marktstaal(oud, vandaag):
+    """Eén keer per dag: alle GTS/Turbo cabrio's en targa's vanaf 2014 op AutoScout24, zónder prijs- of
+    km-grens. Zo is de waardecurve niet scheefgetrokken door de eigen zoekfilters."""
+    if oud and oud.get("datum") == vandaag:
+        return oud
+    groepen, ids = {}, set()
+    # per periode zoeken: AutoScout24 toont max. 10 pagina's, anders verdringen de 992's de oudere 991's
+    for zoek in ({"mmmv": "57||70|GTS", "body": "2"}, {"mmmv": "57||70|Targa 4 GTS"},
+                 {"mmmv": "57||70|Turbo", "body": "2"}):
+        for van, tot in ((2014, 2016), (2017, 2020), (2021, 2024)):
+            for c in fetch_autoscout_zoek({**zoek, "priceto": None, "kmto": None, "fregfrom": van, "fregto": tot}):
+                if c["id"] in ids or not c["prijs"] or not c["jaar"] or c["pk"] in (541, 711):
+                    continue  # 992.2 (T-Hybrid) is een duurdere generatie: niet mengen met de 992.1
+                ids.add(c["id"])
+                c["model"] = model(c)
+                if c["model"]:
+                    groepen.setdefault((c["model"], generatie(c), c["jaar"]), []).append(c["prijs"])
+    punten = [{"model": m, "generatie": g, "jaar": j, "mediaan": sorted(p)[len(p) // 2], "aantal": len(p)}
+              for (m, g, j), p in sorted(groepen.items())]
+    return {"datum": vandaag, "punten": punten}
+
+
+def waardecurve(staal):
+    """Afschrijvingscurve: restwaarde (deel van de nieuwprijs) naar leeftijd, r(a) = f + (1-f)·e^(-k·a).
+    Eén curve voor alle modellen en generaties, daarna per generatie geijkt op de prijzen van vandaag.
+    Geeft per generatie het geschatte verloop sinds nieuw en een prognose (laag/midden/hoog) voor 5 jaar."""
+    # tweedehands auto's hebben bijna altijd opties: vergelijk met catalogusprijs × typische optiemeerprijs
+    nieuw = {m: {g: p * CONFIG["opties_factor"] for g, p in gens.items()} for m, gens in CONFIG["nieuwprijs"].items()}
+    nu = date.today()
+    nu_x = nu.year + (nu.timetuple().tm_yday - 1) / 365
+    obs = [dict(p, a=nu_x - (p["jaar"] + 0.5), r=p["mediaan"] / nieuw[p["model"]][p["generatie"]])
+           for p in staal["punten"] if nieuw.get(p["model"], {}).get(p["generatie"])]
+    obs = [o for o in obs if o["a"] >= 0.5]
+    if len(obs) < 4:
+        return None
+    r = lambda a, f, k: f + (1 - f) * math.exp(-k * a)
+
+    def fit(punten):  # grid search op bodem f en snelheid k, gewogen naar aantal auto's
+        _, f, k = min((sum(o["aantal"] * (o["r"] - r(o["a"], f / 100, k / 100)) ** 2 for o in punten), f / 100, k / 100)
+                      for f in range(10, 96) for k in range(2, 61))
+        return f, k
+
+    # per model een eigen curve (een GTS schrijft trager af dan een Turbo), anders de gezamenlijke
+    fits = {"alle": fit(obs)}
+    for mdl in {o["model"] for o in obs}:
+        eigen = [o for o in obs if o["model"] == mdl]
+        fits[mdl] = fit(eigen) if len(eigen) >= 4 else fits["alle"]
+    reeksen = []
+    for (mdl, gen) in sorted({(o["model"], o["generatie"]) for o in obs}):
+        f, k = fits[mdl]
+        eigen = [o for o in obs if o["model"] == mdl and o["generatie"] == gen]
+        n = sum(o["aantal"] for o in eigen)
+        ijk = sum(o["aantal"] * o["r"] / r(o["a"], f, k) for o in eigen) / n  # deze generatie doet het beter/slechter
+        jaren = sorted(o["jaar"] for o in eigen for _ in range(o["aantal"]))
+        bj = jaren[len(jaren) // 2]                                          # representatief bouwjaar
+        p0, a_nu = nieuw[mdl][gen], nu_x - (bj + 0.5)
+        waarde = lambda a: p0 * r(a, f, k) * (1 + (ijk - 1) * min(1, a / a_nu))
+        verleden = [[round(bj + 0.5 + a, 2), round(waarde(a), -2)] for a in range(0, int(a_nu) + 1)]
+        verleden.append([round(nu_x, 2), round(waarde(a_nu), -2)])
+        # band: sneller (k×1.4, lagere bodem) of trager (k×0.6, hogere bodem) afschrijven vanaf vandaag
+        mid0, toekomst = waarde(a_nu), []
+        for j in range(1, 6):
+            a = a_nu + j
+            schaal = lambda ff, kk: mid0 * r(a, ff, kk) / r(a_nu, ff, kk)
+            toekomst.append([round(nu_x + j, 2), round(schaal(f * 0.9, k * 1.4), -2),
+                             round(schaal(f, k), -2), round(schaal(min(0.95, f * 1.1), k * 0.6), -2)])
+        reeksen.append({"model": mdl, "generatie": gen, "bouwjaar": bj, "nieuwprijs": p0, "aantal": n,
+                        "nu": round(mid0, -2), "behouden_pct": round(mid0 / p0 * 100),
+                        "verleden": verleden, "toekomst": toekomst,
+                        "jaren": [{k2: o[k2] for k2 in ("jaar", "mediaan", "aantal")} for o in eigen]})
+    return {"fits": {m: {"f": f, "k": k} for m, (f, k) in fits.items()}, "datum": staal["datum"],
+            "opties_factor": CONFIG["opties_factor"], "reeksen": reeksen}
+
+
 def markt_punt(cars, markt, vandaag):
     """Mediaan-vraagprijs per model + generatie, één punt per dag (laatste run van de dag telt)."""
     groepen = {}
@@ -461,13 +538,20 @@ def main():
             nieuw_top.append(c)
 
     markt = markt_punt(uniek, state.get("markt", []), now[:10])
+    staal = state.get("marktstaal")
+    try:
+        staal = marktstaal(staal, now[:10])
+    except Exception as e:
+        errors.append(f"marktstaal: {e}")
     state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
+             "marktstaal": staal,
              "auto": {c["id"]: {k: c[k] for k in ("eerst_gezien", "prijshistoriek", "prijs")} for c in uniek}}
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, indent=1))
 
     uniek.sort(key=lambda c: -c["score"])
-    payload = {"bijgewerkt": now, "fouten": errors, "config": CONFIG, "autos": uniek, "markt": markt}
+    payload = {"bijgewerkt": now, "fouten": errors, "config": CONFIG, "autos": uniek, "markt": markt,
+               "waardecurve": waardecurve(staal) if staal else None}
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
 
     print(f"{now}: {len(uniek)} auto's, {len(nieuw_top)} nieuwe toppers, fouten: {errors or 'geen'}")

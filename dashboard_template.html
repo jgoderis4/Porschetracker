@@ -40,6 +40,7 @@
   .tags { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; }
   .tag { background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
   .tag.drop { background: var(--good); }
+  .tag.terug { background: var(--accent); }
   .car.dropped { border: 2px solid var(--good); }
   .old { text-decoration: line-through; color: var(--muted); font-size: 14px; font-weight: 500; margin-right: 6px; }
   .dropline { color: var(--good); font-size: 13px; font-weight: 600; }
@@ -87,6 +88,7 @@
   .tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line); border-radius: 8px;
          padding: 6px 10px; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.12); display: none; white-space: nowrap; }
   .tip i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; }
+  .sub2 { color: var(--muted); font-size: 12px; }
   .keys { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-top: 6px; }
   .keys i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; }
   .empty { padding: 40px; text-align: center; color: var(--muted); }
@@ -161,9 +163,17 @@
   </details>
 
   <details class="legend" id="marktbox">
-    <summary>Marktevolutie: mediaan vraagprijs per generatie</summary>
+    <summary>Marktevolutie: waardeverloop sinds nieuw, prognose en vraagprijs per dag</summary>
     <label style="display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:14px">Model
       <select id="mmodel"><option>GTS</option><option>Turbo</option><option>Turbo S</option></select></label>
+
+    <h3>Waardeverloop sinds nieuw en prognose voor 5 jaar</h3>
+    <div class="keys" id="wkeys"></div>
+    <div class="chartbox" id="wchart"></div>
+    <table id="wtabel"></table>
+    <p class="note" id="wnote"></p>
+
+    <h3>Mediaan vraagprijs per dag (sinds de tracker draait)</h3>
     <div class="keys" id="mkeys"></div>
     <div class="chartbox" id="mchart"></div>
     <table id="mtabel"></table>
@@ -178,6 +188,7 @@
     + bonussen voor manuele bak, 991.1, Belgische auto, Porsche Approved/Centre, lage km en lang te koop − straf voor hoge BIV.
     Buitenlandse auto's worden vergeleken mét geschatte importkosten (transport, keuring, COC, platen).
     <b>All-in</b> = vraagprijs + BIV + importkosten. Favorieten, verborgen auto's en notities worden alleen in deze browser bewaard.
+    Een verborgen auto komt vanzelf terug zodra zijn prijs zakt.
     BIV is een <b>schatting</b> (Vlaanderen, privé, Euro 6); CO₂ uit de advertentie of een standaardwaarde per generatie.
     Controleer het exacte bedrag altijd in de
     <a href="https://belastingen.fenb.be/ui/public/simulaties/vkb" target="_blank">officiële simulator</a>.
@@ -218,6 +229,22 @@ function zetMijn(id, veld, waarde) {
   MIJN[id] = {...mijn(id), [veld]: waarde};
   try { localStorage.setItem(MIJN_KEY, JSON.stringify(MIJN)); } catch (e) {}
 }
+// Verborgen auto's komen vanzelf terug zodra hun prijs zakt t.o.v. de prijs bij het verbergen
+function terugZetten() {
+  const vandaag = DATA.bijgewerkt.slice(0, 10);
+  for (const c of DATA.autos) {
+    const m = mijn(c.id);
+    if (!m.verborgen) continue;
+    if (m.verborgen_prijs == null) { zetMijn(c.id, "verborgen_prijs", c.prijs); continue; }  // vóór deze functie verborgen
+    if (c.prijs < m.verborgen_prijs) {
+      zetMijn(c.id, "verborgen", false);
+      zetMijn(c.id, "terug", {van: m.verborgen_prijs, naar: c.prijs, op: vandaag});
+    }
+  }
+}
+const terugTag = m => m.terug && (Date.parse(DATA.bijgewerkt) - Date.parse(m.terug.op)) < 14 * 864e5
+  ? `<span class="tag terug" title="Was verborgen aan ${fmt(m.terug.van)}">↺ TERUG: −${fmt(m.terug.van - m.terug.naar)}</span>` : "";
+
 const SORTS = {
   score:    (a, b) => b.score - a.score,
   prijs_op: (a, b) => a.prijs - b.prijs,
@@ -327,6 +354,78 @@ function marktGrafiek() {
   $("mhit").addEventListener("mouseleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
 }
 
+// Waardecurve: per generatie het geschatte verloop van een representatieve auto sinds nieuw (lijn),
+// de mediaan van vandaag (punt) en een prognose voor 5 jaar (stippellijn + band laag–hoog)
+function waardeGrafiek() {
+  const wc = DATA.waardecurve, mdl = $("mmodel").value;
+  const reeks = wc ? GENS.map(([g, kleur]) => ({kleur, ...wc.reeksen.find(r => r.model === mdl && r.generatie === g)}))
+    .filter(r => r.verleden) : [];
+  if (!reeks.length) {
+    $("wchart").innerHTML = `<div class="empty">Nog geen marktstaal: verschijnt na de volgende run.</div>`;
+    $("wkeys").innerHTML = $("wtabel").innerHTML = $("wnote").innerHTML = "";
+    return;
+  }
+  const jr = x => Math.floor(x);
+  $("wkeys").innerHTML = reeks.map(r => `<span><i style="background:var(${r.kleur})"></i>${r.generatie} (bouwjaar ${r.bouwjaar})</span>`).join("")
+    + `<span><i style="background:var(--muted);height:0;border-top:2px dashed var(--muted)"></i>prognose</span>`;
+  $("wtabel").innerHTML = `<tr><th>Generatie</th><th>Nieuw (met opties)</th><th>Nu (mediaan)</th><th>Behouden</th>
+      <th>Over 5 jaar</th><th>Per jaar</th><th>Auto's in staal</th></tr>` + reeks.map(r => {
+    const t = r.toekomst[r.toekomst.length - 1], perJaar = (1 - (t[2] / r.nu) ** (1 / 5)) * 100;
+    return `<tr><td><b>${r.generatie}</b></td><td>${fmt(r.nieuwprijs)}</td><td>${fmt(r.nu)}</td><td>${r.behouden_pct}%</td>
+      <td style="white-space:nowrap">${fmt(t[2])}<br><span class="sub2">${fmt(t[1])} – ${fmt(t[3])}</span></td><td>−${perJaar.toFixed(1)}%</td><td>${r.aantal}</td></tr>`;
+  }).join("");
+  $("wnote").innerHTML = `Gebaseerd op ${reeks.reduce((s, r) => s + r.aantal, 0)} ${mdl}-advertenties op AutoScout24 (staal van ${dmy(wc.datum)}, zonder prijs- of km-filter).
+    Nieuwprijs = Duitse catalogusprijs bij lancering × ${wc.opties_factor} voor opties (aan te passen in config.json).
+    De lijn is een <b>schatting</b>: afgeleid uit wat auto's van verschillende leeftijden vandaag kosten, niet uit echte prijzen van vroeger
+    — de prijspiek van 2021–2022 zit er dus niet in. De prognose is een <b>indicatie</b>, geen garantie: kilometers, staat, opties en
+    de markt bepalen de echte waarde.`;
+
+  const W = 760, H = 280, L = 56, R = 64, T = 14, B = 26;
+  const alle = reeks.flatMap(r => [...r.verleden.map(p => [p[0], p[1]]), ...r.toekomst.flatMap(p => [[p[0], p[1]], [p[0], p[3]]])]);
+  const x0 = Math.min(...alle.map(p => p[0])), x1 = Math.max(...alle.map(p => p[0]));
+  let lo = Math.min(...alle.map(p => p[1])), hi = Math.max(...alle.map(p => p[1]));
+  const stap = 25000; lo = Math.max(0, Math.floor(lo / stap) * stap); hi = Math.ceil(hi / stap) * stap;
+  const x = v => L + (v - x0) / (x1 - x0) * (W - L - R), y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const nuX = reeks[0].verleden[reeks[0].verleden.length - 1][0];
+  const ticks = []; for (let v = lo; v <= hi; v += (hi - lo) > 150000 ? 50000 : stap) ticks.push(v);
+  const jaren = []; for (let j = Math.ceil(x0); j <= x1; j++) jaren.push(j);
+  const xjaren = jaren.filter((_, i) => i % Math.ceil(jaren.length / 9) === 0);
+  const pts = arr => arr.map(p => x(p[0]) + "," + y(p[1])).join(" ");
+  reeks.forEach(r => r.ly = y(r.toekomst[r.toekomst.length - 1][2]));
+  [...reeks].sort((a, b) => a.ly - b.ly).forEach((r, i, a) => { if (i && r.ly - a[i - 1].ly < 14) r.ly = a[i - 1].ly + 14; });
+  $("wchart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Waardeverloop ${mdl} per generatie, met prognose">
+    <g class="grid">${ticks.map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${kfmt(v)}</text>`).join("")}</g>
+    ${xjaren.map(j => `<text x="${x(j)}" y="${H - 6}" text-anchor="middle">${j}</text>`).join("")}
+    <line x1="${x(nuX)}" x2="${x(nuX)}" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-width="1"/>
+    <text x="${x(nuX) + 4}" y="${T + 10}">vandaag</text>
+    ${reeks.map(r => { const nu = r.verleden[r.verleden.length - 1], tk = [[nu[0], nu[1], nu[1], nu[1]], ...r.toekomst];
+      return `<polygon fill="var(${r.kleur})" fill-opacity=".12" points="${pts(tk.map(p => [p[0], p[3]]))} ${pts([...tk].reverse().map(p => [p[0], p[1]]))}"/>
+      <polyline fill="none" stroke="var(${r.kleur})" stroke-width="2" stroke-linejoin="round" points="${pts(r.verleden)}"/>
+      <polyline fill="none" stroke="var(${r.kleur})" stroke-width="2" stroke-dasharray="5 4" points="${pts(tk.map(p => [p[0], p[2]]))}"/>
+      <circle cx="${x(r.verleden[0][0])}" cy="${y(r.verleden[0][1])}" r="4" fill="var(--card)" stroke="var(${r.kleur})" stroke-width="2"/>
+      <circle cx="${x(nu[0])}" cy="${y(nu[1])}" r="5" fill="var(${r.kleur})" stroke="var(--card)" stroke-width="2"/>
+      <text class="lbl" x="${x(tk[tk.length - 1][0]) + 8}" y="${r.ly + 4}">${r.generatie}</text>`; }).join("")}
+    <line id="wcross" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>
+    <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="whit"/>
+  </svg><div class="tip" id="wtip"></div>`;
+  // hover: per kalenderjaar de (geschatte) waarde van elke generatie
+  const svg = $("wchart").querySelector("svg"), tip = $("wtip"), cross = $("wcross");
+  const opJaar = (r, j) => { const v = r.verleden.find(p => jr(p[0]) === j && p[0] !== nuX), t = r.toekomst.find(p => jr(p[0]) === j);
+    return t ? `${fmt(t[2])} <span class="sub2">(${fmt(t[1])}–${fmt(t[3])})</span>` : v ? `≈ ${fmt(v[1])}${jr(v[0]) === r.bouwjaar ? " (nieuw)" : ""}` : ""; };
+  $("whit").addEventListener("mousemove", e => {
+    const b = svg.getBoundingClientRect(), mx = (e.clientX - b.left) / b.width * W;
+    const j = jaren.reduce((a, c) => Math.abs(x(c + .5) - mx) < Math.abs(x(a + .5) - mx) ? c : a);
+    cross.setAttribute("x1", x(j + .5)); cross.setAttribute("x2", x(j + .5)); cross.setAttribute("visibility", "visible");
+    const regels = reeks.map(r => { const w = opJaar(r, j); return w ? `<i style="background:var(${r.kleur})"></i>${r.generatie}: ${w}` : ""; }).filter(Boolean);
+    if (!regels.length) { tip.style.display = "none"; return; }
+    tip.innerHTML = `<b>${j}${j > jr(nuX) ? " (prognose)" : ""}</b><br>` + regels.join("<br>");
+    tip.style.display = "block";
+    const px = x(j + .5) / W * b.width;
+    tip.style.left = Math.min(px + 12, b.width - tip.offsetWidth) + "px"; tip.style.top = "8px";
+  });
+  $("whit").addEventListener("mouseleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
+}
+
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
 function render() {
@@ -352,7 +451,7 @@ function render() {
          data-id="${esc(c.id)}" data-url="${esc(c.url)}">
       <div class="img" style="background-image:url('${esc(c.foto)}')">
         <div class="tags">${c.nieuw ? '<span class="tag">NIEUW</span>' : ""}
-          ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}</div>
+          ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}${terugTag(m)}</div>
         <div class="score ${c.score >= hi ? "hi" : ""}">${c.score}</div>
       </div>
       <div class="body">
@@ -406,14 +505,20 @@ if (!DATA) {
       return;
     }
     zetMijn(id, act, !mijn(id)[act]);
+    if (act === "verborgen" && mijn(id).verborgen) {  // onthoud de prijs: zakt die later, dan komt de auto terug
+      zetMijn(id, "verborgen_prijs", DATA.autos.find(c => c.id === id).prijs);
+      zetMijn(id, "terug", null);
+    }
     render();
   });
   // stappen van €10.000 tot de maximumprijs uit config.json
   for (let p = 100000; p < DATA.config.max_prijs; p += 10000)
     $("maxp").innerHTML += `<option value="${p}">${fmt(p)}</option>`;
+  terugZetten();
   jaarTabel();
   loadPrefs();
-  $("mmodel").addEventListener("change", marktGrafiek);
+  $("mmodel").addEventListener("change", () => { waardeGrafiek(); marktGrafiek(); });
+  waardeGrafiek();
   marktGrafiek();
   ["gen","van","maxp","mdl","typ","sort",...CHECKS].forEach(id => $(id).addEventListener("change", render));
   render();

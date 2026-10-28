@@ -40,3 +40,11 @@ Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.
 - **Alleen Belgische dealersites** in `bronnen/`; buitenlands aanbod komt via AutoScout24.
 - **Mac-melding is een dialoogvenster**, geen notificatie: notificaties vanuit scripts worden stil tegengehouden.
 - **Repo is openbaar**: nooit geheimen committen (ntfy-kanaal, sleutels); die staan in Application Support.
+
+## Waardecurve en prognose
+- `marktstaal()` haalt 1x per dag alle GTS/Turbo cabrio's+targa's vanaf 2014 op AutoScout24 op, zonder prijs-/km-filter,
+  per periode (2014–16, 2017–20, 2021–24) wegens de limiet van 10 pagina's. 992.2 (541/711 pk) blijft eruit.
+- `waardecurve()` past per model r(a) = f + (1-f)·e^(-k·a) toe (restwaarde t.o.v. `nieuwprijs` × `opties_factor`),
+  ijkt per generatie op de mediaan van vandaag en geeft verloop sinds nieuw + prognose 5 jaar (band: k×1.4/f×0.9 tot k×0.6/f×1.1).
+  Het verloop is afgeleid uit prijzen per leeftijd vandaag (cross-sectioneel), niet uit echte historische prijzen.
+- Verborgen auto's (dashboard, localStorage) komen vanzelf terug als hun prijs lager is dan bij het verbergen (`verborgen_prijs`).

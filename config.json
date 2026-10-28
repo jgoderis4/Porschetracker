@@ -8,6 +8,14 @@
   "melding_bij_prijsdaling_pct": 3,
   "import_kosten": {"BE": 0, "NL": 1500, "LU": 1500, "DE": 1800, "anders": 2500},
 
+  "nieuwprijs_uitleg": "Catalogusprijs Cabriolet bij lancering (Duitsland, incl. btw), indicatief. Basis voor de waardecurve, maal opties_factor (typische meerprijs aan opties).",
+  "opties_factor": 1.2,
+  "nieuwprijs": {
+    "GTS":     {"991.1": 130300, "991.2": 137000, "992": 155000},
+    "Turbo":   {"991.1": 174400, "991.2": 187700, "992": 194000},
+    "Turbo S": {"991.1": 208000, "991.2": 216000, "992": 226000}
+  },
+
   "score": {
     "deal_factor": 150,
     "deal_max": 30,
