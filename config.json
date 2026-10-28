@@ -7,6 +7,29 @@
   "melding_vanaf_score": 61,
   "melding_bij_prijsdaling_pct": 3,
   "import_kosten": {"BE": 0, "NL": 1500, "LU": 1500, "DE": 1800, "anders": 2500},
+  "samenvatting_dag": 6,
+  "samenvatting_uitleg": "Wekelijkse samenvatting naar ntfy bij de avondrun op deze dag (0 = maandag … 6 = zondag).",
+
+  "kost_uitleg": "Totale kost als je de auto kost_jaren houdt: afschrijving (waardecurve) + BIV + import + verkeersbelasting + onderhoud. Verzekering niet meegeteld.",
+  "kost_jaren": 3,
+  "onderhoud_per_jaar": 2000,
+  "verkeersbelasting": {
+    "uitleg": "Vlaamse jaarlijkse verkeersbelasting, tarief 01.07.2026-30.06.2027 (vlaanderen.be), elk jaar op 1 juli nakijken. Plus 10% gemeente-opdeciem. Vanaf bouwjaar 2021 CO2- en euronormcorrectie (benzine Euro 6: -15%).",
+    "tarief_per_fiscale_pk": {"15": 977.76, "16": 1280.76, "17": 1584.00, "19": 2189.52, "20": 2492.64},
+    "fiscale_pk": {
+      "GTS":     {"991.1": 19, "991.2": 15, "992": 15},
+      "Turbo":   {"991.1": 19, "991.2": 19, "992": 19},
+      "Turbo S": {"991.1": 19, "991.2": 19, "992": 19}
+    },
+    "opdeciem": 0.10,
+    "groen_vanaf_bouwjaar": 2021,
+    "co2_drempel": 149,
+    "co2_pct_per_gram": 0.3,
+    "benzine_euro6_pct": -15
+  },
+
+  "bod_uitleg": "Biedvoorstel: plafond = laagste van vraagprijs en marktprijs; startbod = plafond min de onderhandelingsruimte (%).",
+  "bod": {"basis_pct": 4, "per_30_dagen_online_pct": 1, "max_extra_pct": 5, "na_prijsdaling_pct": 1, "porsche_centre_pct": -2},
 
   "nieuwprijs_uitleg": "Catalogusprijs Cabriolet bij lancering (Duitsland, incl. btw), indicatief. Basis voor de waardecurve, maal opties_factor (typische meerprijs aan opties).",
   "opties_factor": 1.2,

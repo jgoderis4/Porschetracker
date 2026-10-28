@@ -31,6 +31,18 @@ Testen: `python3 tracker.py --test-melding` (Mac-venster + gsm).
 Manueel pushen: knop "📲 Push" op elke kaart in het dashboard stuurt de auto (+ optionele opmerking) naar het kanaal;
 het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerde dashboard (niet in het template/git).
 
+## Kost, bod, verkoopsnelheid, samenvatting, vergelijken
+- **Kost per jaar** (`totale_kost()`): afschrijving over `kost_jaren` volgens de waardecurve van het model
+  (prijs × r(a+jaren)/r(a)) + BIV + import + verkeersbelasting + `onderhoud_per_jaar`, gedeeld door de jaren. Geen verzekering.
+- **Verkeersbelasting** (`verkeersbelasting()`): tarief per fiscale pk uit config.json (jaarlijks op 1 juli indexeren!)
+  + 10% opdeciem; vanaf bouwjaar 2021 CO2/euronorm-correctie. 3.0 l = 15 pk, 3.7/3.8 l = 19 pk.
+- **Bod** (`biedvoorstel()`): plafond = min(vraagprijs, marktprijs − import); startbod = plafond − ruimte (config `bod`).
+- **Verkoopsnelheid** (`verkoopsnelheid()`): elke verdwenen auto gaat (blijvend, max 1000) naar `verkoop_historiek` in
+  state.json; mediaan dagen per model|generatie(|bak). Auto's die er al stonden bij `gestart` tellen niet mee.
+- **Weekoverzicht** (`samenvatting()`): push bij de eerste run na 17u op `samenvatting_dag` (zondag);
+  nu testen: `python3 tracker.py --samenvatting` (stuurt echt naar het kanaal).
+- **Vergelijken**: knop op de kaart, max 3, alleen in het geheugen van de pagina (niet bewaard).
+
 ## Keuzes & bewust niet
 
 Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.

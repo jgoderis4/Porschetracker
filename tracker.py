@@ -18,7 +18,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -355,9 +355,13 @@ def push_auto(c):
          url=c["url"], prioriteit=4)
 
 
+def nl(n):
+    """1234567 -> '1.234.567'"""
+    return f"{round(n):,}".replace(",", ".")
+
+
 def auto_regel(c):
-    return (f"• {c['model']} {c['type']} {c['generatie']} {c['jaar']}, {c['km']:,} km, "
-            f"€{c['prijs']:,} – score {c['score']}").replace(",", ".")
+    return f"• {c['model']} {c['type']} {c['generatie']} {c['jaar']}, {nl(c['km'])} km, €{nl(c['prijs'])} – score {c['score']}"
 
 
 def dealer_bronnen():
@@ -459,6 +463,82 @@ def waardecurve(staal):
             "opties_factor": CONFIG["opties_factor"], "reeksen": reeksen}
 
 
+def verkeersbelasting(c):
+    """Vlaamse jaarlijkse verkeersbelasting (schatting): tarief per fiscale pk + 10% gemeente-opdeciem.
+    Vanaf bouwjaar 2021 de 'groene' correctie: +0,3% per g CO2 boven 149 g, benzine Euro 6 −15%."""
+    v = CONFIG["verkeersbelasting"]
+    bedrag = v["tarief_per_fiscale_pk"][str(v["fiscale_pk"][c["model"]][c["generatie"]])]
+    if (c["jaar"] or 0) >= v["groen_vanaf_bouwjaar"]:
+        co2 = min(500, c["co2_gebruikt"])
+        bedrag *= 1 + ((co2 - v["co2_drempel"]) * v["co2_pct_per_gram"] + v["benzine_euro6_pct"]) / 100
+    return round(bedrag * (1 + v["opdeciem"]))
+
+
+def totale_kost(c, fits):
+    """Wat kost de auto je als je hem kost_jaren houdt en dan verkoopt? De restwaarde volgt de
+    waardecurve van het model: prijs × r(leeftijd + jaren) / r(leeftijd)."""
+    fk = fits.get(c["model"]) or fits.get("alle")
+    if not fk:
+        return None
+    jaren = CONFIG["kost_jaren"]
+    r = lambda a: fk["f"] + (1 - fk["f"]) * math.exp(-fk["k"] * a)
+    vandaag = date.today()
+    a = max(0, vandaag.year - c["jaar"] + (vandaag.month - (c["maand"] or 6)) / 12)
+    rest = round(c["prijs"] * r(a + jaren) / r(a), -2)
+    delen = {"afschrijving": c["prijs"] - rest, "biv_import": c["biv"] + c["import_kosten"],
+             "verkeersbelasting": verkeersbelasting(c) * jaren, "onderhoud": CONFIG["onderhoud_per_jaar"] * jaren}
+    totaal = sum(delen.values())
+    return dict(delen, jaren=jaren, restwaarde=rest, totaal=totaal, per_jaar=round(totaal / jaren, -2))
+
+
+def biedvoorstel(c):
+    """Startbod en plafond. Plafond = laagste van vraagprijs en marktprijs (zonder import);
+    meer ruimte als de auto lang te koop staat of al gezakt is, minder bij een Porsche Centre."""
+    if c.get("marktprijs") is None:
+        return None
+    b = CONFIG["bod"]
+    plafond = min(c["prijs"], c["marktprijs"] - c["import_kosten"])
+    ruimte = b["basis_pct"] + min(b["max_extra_pct"], c["dagen_online"] / 30 * b["per_30_dagen_online_pct"])
+    if c["prijsdaling_pct"] > 0:
+        ruimte += b["na_prijsdaling_pct"]
+    if "Porsche Centre" in c["waarom"]:
+        ruimte += b["porsche_centre_pct"]
+    return {"start": round(plafond * (1 - ruimte / 100), -2), "plafond": round(plafond, -2), "ruimte_pct": round(ruimte, 1)}
+
+
+def verkoopsnelheid(historiek, gestart):
+    """Na hoeveel dagen verdwijnen auto's, per model + generatie (en per bak). Auto's die er al stonden
+    toen de tracker startte tellen niet mee: van die auto's kennen we de echte startdatum niet."""
+    groepen = {}
+    for v in historiek:
+        if v["eerst_gezien"][:10] <= gestart:
+            continue
+        bak = "manueel" if v["manueel"] else "pdk"
+        for sleutel in (f'{v["model"]}|{v["generatie"]}', f'{v["model"]}|{v["generatie"]}|{bak}'):
+            groepen.setdefault(sleutel, []).append(v["dagen"])
+    return {k: {"mediaan": sorted(d)[len(d) // 2], "aantal": len(d)} for k, d in sorted(groepen.items())}
+
+
+def samenvatting(cars, verkocht, markt):
+    """Tekst voor de wekelijkse pushmelding: wat er deze week gebeurde, de top 3 en de marktbeweging."""
+    week = (datetime.now() - timedelta(days=7)).isoformat(timespec="minutes")
+    nieuw = [c for c in cars if c["eerst_gezien"] >= week]
+    gedaald = [c for c in cars if any(d >= week for d, _ in c["prijshistoriek"][1:]) and c["prijsdaling_pct"] > 0]
+    weg = [v for v in verkocht.values() if v["weg_sinds"] >= week]
+    regels = [f"{len(cars)} auto's · {len(nieuw)} nieuw · {len(gedaald)} prijsdaling(en) · {len(weg)} verkocht", "",
+              "Top 3:"] + [auto_regel(c) for c in sorted(cars, key=lambda c: -c["score"])[:3]]
+    oud = next((m for m in reversed(markt) if m["datum"] <= week[:10]), None)
+    if oud:
+        bewegingen = []
+        for seg, nu in markt[-1]["segmenten"].items():
+            toen = oud["segmenten"].get(seg)
+            if toen and nu["aantal"] >= 3 and toen["aantal"] >= 3:
+                bewegingen.append(f"{seg.replace('|', ' ')} {(nu['mediaan'] - toen['mediaan']) / toen['mediaan'] * 100:+.1f}%")
+        if bewegingen:
+            regels += ["", "Markt (mediaan t.o.v. vorige week): " + ", ".join(bewegingen)]
+    return "\n".join(regels)
+
+
 def markt_punt(cars, markt, vandaag):
     """Mediaan-vraagprijs per model + generatie, één punt per dag (laatste run van de dag telt)."""
     groepen = {}
@@ -518,6 +598,8 @@ def main():
     verkocht = {i: v for i, v in state.get("verkocht", {}).items()
                 if (date.today() - date.fromisoformat(v["weg_sinds"][:10])).days <= VERKOCHT_BEWAREN_DAGEN}
     # zelfde auto, ander id (bv. AutoScout24 lag plat, de auto staat ook op 2dehands): oud id behouden
+    verkoop_historiek = state.get("verkoop_historiek", [])
+    gestart = state.get("gestart") or (state.get("markt") or [{"datum": now[:10]}])[0]["datum"]
     gevonden = {c["id"] for c in uniek}
     for c in uniek:
         if c["id"] not in state["auto"]:
@@ -538,6 +620,10 @@ def main():
             verkocht[i] = {"titel": laatst.get("titel", ""), "prijs": old["prijs"], "url": laatst.get("url"),
                            "weg_sinds": now, "eerst_gezien": old["eerst_gezien"],
                            "prijshistoriek": old["prijshistoriek"]}
+            if laatst.get("model"):  # voor de verkoopsnelheid, blijft ook na de 60 dagen bewaard
+                verkoop_historiek.append({k: laatst[k] for k in ("model", "generatie", "manueel", "type", "prijs")}
+                                         | {"eerst_gezien": old["eerst_gezien"], "weg_sinds": now,
+                                            "dagen": (date.today() - date.fromisoformat(old["eerst_gezien"][:10])).days})
     for c in uniek:
         old = state["auto"].get(c["id"]) or verkocht.pop(c["id"], None)  # terug na verkocht: niet opnieuw "nieuw"
         c.setdefault("bron_offline", False)
@@ -576,8 +662,18 @@ def main():
         staal = marktstaal(staal, now[:10])
     except Exception as e:
         errors.append(f"marktstaal: {e}")
+    curve = waardecurve(staal) if staal else None
+    snelheid = verkoopsnelheid(verkoop_historiek, gestart)
+    for c in uniek:
+        c["kost"] = totale_kost(c, curve["fits"]) if curve else None
+        c["bod"] = biedvoorstel(c)
+        c["verkoopsnelheid"] = snelheid.get(f'{c["model"]}|{c["generatie"]}|{"manueel" if c["manueel"] else "pdk"}')
+    samenvatting_nu = (date.today().weekday() == CONFIG["samenvatting_dag"] and datetime.now().hour >= 17
+                       and state.get("laatste_samenvatting") != now[:10]) or "--samenvatting" in sys.argv
     state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
-             "marktstaal": staal, "verkocht": verkocht,
+             "marktstaal": staal, "verkocht": verkocht, "gestart": gestart, "verkoop_historiek": verkoop_historiek[-1000:],
+             "laatste_samenvatting": now[:10] if samenvatting_nu and "--geen-melding" not in sys.argv
+             else state.get("laatste_samenvatting"),
              "auto": {c["id"]: {"eerst_gezien": c["eerst_gezien"], "prijshistoriek": c["prijshistoriek"],
                                 "prijs": c["prijs"], "laatst": c} for c in uniek}}
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -589,12 +685,14 @@ def main():
                "ntfy_topic": ntfy_topic(),
                "verkocht": [dict(v, id=i) for i, v in sorted(verkocht.items(), key=lambda kv: kv[1]["weg_sinds"],
                                                                 reverse=True)],
-               "waardecurve": waardecurve(staal) if staal else None}
+               "verkoopsnelheid": snelheid, "gestart": gestart, "waardecurve": curve}
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
 
     print(f"{now}: {len(uniek)} auto's, {len(nieuw_top)} nieuwe toppers, fouten: {errors or 'geen'}")
     if "--geen-melding" in sys.argv:
         return
+    if samenvatting_nu:
+        push("Porsche GTS/Turbo tracker: weekoverzicht", samenvatting(uniek, verkocht, markt), prioriteit=3)
     if nieuw_top:
         nieuw_top.sort(key=lambda c: -c["score"])
         regels = "\n".join(auto_regel(c) for c in nieuw_top[:5])
