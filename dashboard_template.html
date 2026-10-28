@@ -98,9 +98,10 @@
   .vgl-box img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
   .vgl-kop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .vgl-kop button { font: inherit; background: var(--chip); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
-  .acts { display: flex; gap: 6px; }
-  .acts button { font: inherit; font-size: 12px; background: var(--chip); color: var(--text); border: 1px solid var(--line);
-                 border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .acts { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+  .acts button { font: inherit; font-size: 15px; line-height: 1; background: var(--chip); color: var(--text); border: 1px solid var(--line);
+                 border-radius: 6px; padding: 6px 0; cursor: pointer; }
+  .acts button:hover { border-color: var(--muted); }
   .acts button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
   .mynote { font-size: 13px; background: var(--chip); border-left: 3px solid var(--accent); padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; }
   .car textarea { font: inherit; font-size: 13px; width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 6px;
@@ -307,9 +308,9 @@ async function pushAuto(c, knop) {
       message: (opmerking.trim() ? opmerking.trim() + "\n\n" : "") + regel + "\n" + allIn,
       click: c.url, priority: 4, tags: ["red_car", "point_right"]})});
     if (!r.ok) throw new Error(r.status);
-    knop.textContent = "✓ Gepusht";
+    knop.textContent = "✓"; knop.title = "Gepusht";
   } catch (e) {
-    knop.textContent = "✕ Mislukt";
+    knop.textContent = "⚠"; knop.title = "Push mislukt";
     knop.disabled = false;
     alert("Pushmelding mislukt: " + e.message);
   }
@@ -636,11 +637,11 @@ function render() {
         ${sitesBlock(c)}
         ${m.notitie ? `<div class="mynote">${esc(m.notitie)}</div>` : ""}
         <div class="acts">
-          <button data-act="fav" class="${m.fav ? "on" : ""}">${m.fav ? "★ Favoriet" : "☆ Favoriet"}</button>
-          <button data-act="notitie" class="${m.notitie ? "on" : ""}">✎ Notitie</button>
-          ${DATA.ntfy_topic ? '<button data-act="push" title="Stuur deze auto naar iedereen die het ntfy-kanaal volgt">📲 Push</button>' : ""}
-          <button data-act="vgl" class="${VERGELIJK.includes(c.id) ? "on" : ""}" title="Zet tot 3 auto's naast elkaar">⇄ Vergelijk</button>
-          <button data-act="verborgen">${m.verborgen ? "↺ Terugzetten" : "✕ Verbergen"}</button>
+          <button data-act="fav" class="${m.fav ? "on" : ""}" title="${m.fav ? "Geen favoriet meer" : "Favoriet"}">${m.fav ? "★" : "☆"}</button>
+          <button data-act="notitie" class="${m.notitie ? "on" : ""}" title="Notitie">✎</button>
+          ${DATA.ntfy_topic ? '<button data-act="push" title="Push naar iedereen die het ntfy-kanaal volgt">📲</button>' : ""}
+          <button data-act="vgl" class="${VERGELIJK.includes(c.id) ? "on" : ""}" title="Vergelijk (tot 3 auto's naast elkaar)">⇄</button>
+          <button data-act="verborgen" title="${m.verborgen ? "Terugzetten" : "Verbergen"}">${m.verborgen ? "↺" : "✕"}</button>
         </div>
         <div class="foot"><span>${esc(c.bron)} · ${esc(c.verkoper || "")}${c.plaats ? " · " + esc(c.plaats) : ""}</span>
           <span>sinds ${dmy(c.eerst_gezien)}</span></div>
@@ -671,7 +672,7 @@ if (!DATA) {
       t.placeholder = "Bv. gebeld op 3/11, onderhandelbaar tot € 118.000";
       t.addEventListener("input", () => zetMijn(id, "notitie", t.value.trim()));
       knop.parentElement.before(t);
-      knop.textContent = "✓ Klaar";
+      knop.textContent = "✓"; knop.title = "Notitie bewaren";
       t.focus();
       return;
     }
