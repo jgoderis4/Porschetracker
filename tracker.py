@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Porsche 911 GTS / Turbo / Turbo S (Cabriolet + Targa) tracker.
 
-Haalt advertenties op van AutoScout24 (BE/NL/DE), Belgische dealersites (bronnen/)
+Haalt advertenties op van AutoScout24 (BE/NL/DE/LU), Belgische dealersites (bronnen/)
 en 2dehands.be, voegt dezelfde auto op meerdere sites samen, berekent een
 geschatte Vlaamse BIV en een score (waardebehoud + prijs t.o.v. de markt),
 en schrijft een dashboard (dashboard.html). Bij nieuwe toppers volgt een Mac-melding.
