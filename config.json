@@ -4,7 +4,7 @@
   "vanaf_bouwjaar": 2014,
   "max_biv": 4000,
   "landen_autoscout": ["B", "NL", "D", "L"],
-  "melding_vanaf_score": 51,
+  "melding_vanaf_score": 61,
   "melding_bij_prijsdaling_pct": 3,
   "import_kosten": {"BE": 0, "NL": 1500, "LU": 1500, "DE": 1800, "anders": 2500},
 
