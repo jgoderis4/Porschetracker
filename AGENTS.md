@@ -10,6 +10,13 @@ op AutoScout24 (BE/NL/DE), 2dehands.be en Belgische dealersites (Lampe, AE Cars,
 - `dashboard_template.html` – dashboard; `/*__DATA__*/null` wordt vervangen door de data
 - `install.sh` – kopieert naar `~/Library/Application Support/porsche-tracker` en plant de launchd-taak
   (macOS laat geplande taken niet in ~/Documents). **Na elke wijziging opnieuw `./install.sh` draaien.**
+- **Bronbewaking** (`bron_bewaking()`): aantal advertenties per bron wordt bijgehouden in state.json; valt een grote bron
+  (mediaan ≥ 3) terug onder 40% van normaal, dan komt er een waarschuwing (dashboard + melding). Kleine dealers geven zelf een fout.
+- **All-in prijs** = vraagprijs + BIV + `import_kosten` (per land, config.json). Marktprijs en korting rekenen met vraagprijs + import.
+- **Dagen online** = sinds de tracker de advertentie eerst zag; vanaf `lang_online_dagen` een kleine bonus (onderhandelingsruimte).
+- **Marktgrafiek**: `markt_punt()` bewaart per dag de mediaan-vraagprijs per model|generatie in state.json → dashboard.
+- **Favorieten / verbergen / notities** staan alleen in de browser (localStorage `porsche-mijn`), niet in Python:
+  verborgen auto's geven dus nog wel meldingen.
 - `dashboard.html` – symlink naar het gegenereerde dashboard; log: `~/Library/Application Support/porsche-tracker/tracker.log`
 
 Melding (venster met geluid + knop "Open dashboard"; macOS-notificaties worden vanuit scripts tegengehouden) bij een nieuwe auto met score ≥ `melding_vanaf_score` en BIV ≤ `max_biv`,
@@ -27,7 +34,9 @@ Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.
   Nadeel dat we aanvaarden: de Mac moet om 08:00/18:00 aanstaan (of draait de run zodra hij wakker wordt).
 - **Gsm-meldingen via ntfy.sh, geen Web Push/PWA.** Geen account, geen server, geen extra pakketten nodig.
 - **Alleen Python-stdlib (3.9)**: geen `pip install`, zodat het met `/usr/bin/python3` blijft draaien.
-- **Geen Mobile.de**: bot-blokkering.
+- **Geen Mobile.de, Porsche Finder of Elferspot**: bot-blokkering (Porsche Finder: Vercel Security Checkpoint;
+  Elferspot: Bunny Shield + `Crawl-delay: 10`; getest okt. 2026). Niet proberen te omzeilen.
+  Porsche Approved-wagens staan meestal ook op AutoScout24; voor Elferspot: hun eigen e-mailalert ("save search").
 - **Alleen Belgische dealersites** in `bronnen/`; buitenlands aanbod komt via AutoScout24.
 - **Mac-melding is een dialoogvenster**, geen notificatie: notificaties vanuit scripts worden stil tegengehouden.
 - **Repo is openbaar**: nooit geheimen committen (ntfy-kanaal, sleutels); die staan in Application Support.

@@ -8,10 +8,12 @@
   :root {
     --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73; --line: #e3e1dc;
     --accent: #b8860b; --good: #1f7a3f; --bad: #b3261e; --chip: #efede8;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #141414; --card: #1e1e1e; --text: #f2f2f2; --muted: #9a9a9f; --line: #2e2e2e;
-            --accent: #e0b84a; --good: #5cc983; --bad: #ff7b72; --chip: #2a2a2a; }
+            --accent: #e0b84a; --good: #5cc983; --bad: #ff7b72; --chip: #2a2a2a;
+            --s1: #3987e5; --s2: #d95926; --s3: #199e70; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -63,6 +65,30 @@
   .legend th, .legend td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
   .legend th { color: var(--muted); font-weight: 500; white-space: nowrap; }
   .legend .note { margin-top: 8px; }
+  .car { cursor: pointer; }
+  .car.fav { border: 2px solid var(--accent); }
+  .car.hidden { opacity: .4; }
+  .t a { color: inherit; text-decoration: none; }
+  .allin { font-size: 13px; color: var(--muted); }
+  .allin b { color: var(--text); }
+  .acts { display: flex; gap: 6px; }
+  .acts button { font: inherit; font-size: 12px; background: var(--chip); color: var(--text); border: 1px solid var(--line);
+                 border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .acts button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .mynote { font-size: 13px; background: var(--chip); border-left: 3px solid var(--accent); padding: 6px 8px; border-radius: 4px; white-space: pre-wrap; }
+  .car textarea { font: inherit; font-size: 13px; width: 100%; min-height: 60px; border: 1px solid var(--line); border-radius: 6px;
+                  background: var(--card); color: var(--text); padding: 6px; resize: vertical; }
+  .online.lang { background: color-mix(in srgb, var(--good) 18%, var(--chip)); }
+  .chartbox { position: relative; margin-top: 8px; }
+  .chartbox svg { width: 100%; height: auto; display: block; overflow: visible; }
+  .chartbox text { fill: var(--muted); font-size: 11px; }
+  .chartbox .lbl { font-size: 12px; font-weight: 600; fill: var(--text); }
+  .chartbox .grid line { stroke: var(--line); }
+  .tip { position: absolute; pointer-events: none; background: var(--card); border: 1px solid var(--line); border-radius: 8px;
+         padding: 6px 10px; font-size: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.12); display: none; white-space: nowrap; }
+  .tip i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 6px; }
+  .keys { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; margin-top: 6px; }
+  .keys i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; }
   .empty { padding: 40px; text-align: center; color: var(--muted); }
 </style>
 </head>
@@ -98,6 +124,8 @@
         <option value="km">Kilometers (laag → hoog)</option>
         <option value="jaar">Bouwjaar (nieuw → oud)</option>
         <option value="biv">BIV (laag → hoog)</option>
+        <option value="allin">All-in prijs (laag → hoog)</option>
+        <option value="online">Langst te koop</option>
         <option value="nieuwst">Nieuwste advertentie</option>
       </select>
     </label>
@@ -106,6 +134,8 @@
     <label><input type="checkbox" id="be"> Alleen België</label>
     <label><input type="checkbox" id="nw"> Alleen nieuw</label>
     <label><input type="checkbox" id="biv"> Toon ook BIV boven max</label>
+    <label><input type="checkbox" id="fav"> Alleen favorieten</label>
+    <label><input type="checkbox" id="verb"> Toon verborgen</label>
     <span class="count" id="count"></span>
   </div>
 
@@ -130,11 +160,24 @@
     <p class="note">BIV daalt elk jaar dat de auto ouder wordt (leeftijdscorrectie). Schatting voor een GTS met PDK; de kaarten rekenen per auto.</p>
   </details>
 
+  <details class="legend" id="marktbox">
+    <summary>Marktevolutie: mediaan vraagprijs per generatie</summary>
+    <label style="display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:14px">Model
+      <select id="mmodel"><option>GTS</option><option>Turbo</option><option>Turbo S</option></select></label>
+    <div class="keys" id="mkeys"></div>
+    <div class="chartbox" id="mchart"></div>
+    <table id="mtabel"></table>
+    <p class="note">Eén punt per dag: de middelste vraagprijs van alle auto's van dat model en die generatie op dat moment.
+      Daalt de lijn, dan zakt de markt. De grafiek wordt langer met elke run.</p>
+  </details>
+
   <div class="grid" id="grid"></div>
 
   <p class="note">
     Score (0–100) = prijs t.o.v. vergelijkbare auto's in deze lijst (bouwjaar, km, bak, generatie)
-    + bonussen voor manuele bak, 991.1, Belgische auto, Porsche Approved/Centre en lage km − straf voor hoge BIV.
+    + bonussen voor manuele bak, 991.1, Belgische auto, Porsche Approved/Centre, lage km en lang te koop − straf voor hoge BIV.
+    Buitenlandse auto's worden vergeleken mét geschatte importkosten (transport, keuring, COC, platen).
+    <b>All-in</b> = vraagprijs + BIV + importkosten. Favorieten, verborgen auto's en notities worden alleen in deze browser bewaard.
     BIV is een <b>schatting</b> (Vlaanderen, privé, Euro 6); CO₂ uit de advertentie of een standaardwaarde per generatie.
     Controleer het exacte bedrag altijd in de
     <a href="https://belastingen.fenb.be/ui/public/simulaties/vkb" target="_blank">officiële simulator</a>.
@@ -164,7 +207,17 @@ function savePrefs() {
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) {}
 }
 
-const CHECKS = ["man","drop","be","nw","biv"];
+const CHECKS = ["man","drop","be","nw","biv","fav","verb"];
+
+// Favorieten, verborgen auto's en notities: per auto-id in deze browser
+const MIJN_KEY = "porsche-mijn";
+let MIJN = {};
+try { MIJN = JSON.parse(localStorage.getItem(MIJN_KEY) || "{}"); } catch (e) {}
+const mijn = id => MIJN[id] || {};
+function zetMijn(id, veld, waarde) {
+  MIJN[id] = {...mijn(id), [veld]: waarde};
+  try { localStorage.setItem(MIJN_KEY, JSON.stringify(MIJN)); } catch (e) {}
+}
 const SORTS = {
   score:    (a, b) => b.score - a.score,
   prijs_op: (a, b) => a.prijs - b.prijs,
@@ -175,6 +228,8 @@ const SORTS = {
   jaar:     (a, b) => (b.jaar * 12 + b.maand) - (a.jaar * 12 + a.maand),
   biv:      (a, b) => a.biv - b.biv,
   nieuwst:  (a, b) => b.eerst_gezien.localeCompare(a.eerst_gezien),
+  allin:    (a, b) => a.all_in - b.all_in,
+  online:   (a, b) => b.dagen_online - a.dagen_online,
 };
 const dmy = iso => iso.slice(5, 10).split("-").reverse().join("/");
 
@@ -215,7 +270,61 @@ function priceBlock(c) {
   } else if (c.prijs > first) {
     line = `<div class="upline" title="${title}">↑ ${fmt(c.prijs - first)} duurder sinds ${dmy(hist[0][0])}</div>`;
   }
-  return `<div class="price">${c.prijs < first ? `<span class="old">${fmt(first)}</span>` : ""}${fmt(c.prijs)}${deal}</div>${line}`;
+  const delen = `vraagprijs ${fmt(c.prijs)} + BIV ${fmt(c.biv)}` + (c.import_kosten ? ` + import ≈ ${fmt(c.import_kosten)}` : "");
+  return `<div class="price">${c.prijs < first ? `<span class="old">${fmt(first)}</span>` : ""}${fmt(c.prijs)}${deal}</div>${line}
+    <div class="allin" title="${esc(delen)}">All-in ≈ <b>${fmt(c.all_in)}</b> <span>(${esc(delen.replace(/^vraagprijs [^+]+\+ /, "incl. "))})</span></div>`;
+}
+
+// Marktgrafiek: één lijn per generatie, kleur hangt vast aan de generatie (niet aan de volgorde)
+const GENS = [["991.1", "--s1"], ["991.2", "--s2"], ["992", "--s3"]];
+const kfmt = n => "€ " + Math.round(n / 1000) + "k";
+function marktGrafiek() {
+  const markt = DATA.markt || [], mdl = $("mmodel").value;
+  const reeks = GENS.map(([g, kleur]) => ({g, kleur, punten: markt
+    .map(m => ({datum: m.datum, ...(m.segmenten[mdl + "|" + g] || {})}))
+    .filter(p => p.mediaan)})).filter(r => r.punten.length);
+  $("mkeys").innerHTML = reeks.map(r => `<span><i style="background:var(${r.kleur})"></i>${r.g}</span>`).join("");
+  const laatste = reeks.map(r => ({r, p: r.punten[r.punten.length - 1], p0: r.punten[0]}));
+  $("mtabel").innerHTML = laatste.length ? `<tr><th>Generatie</th><th>Mediaan nu</th><th>Aantal te koop</th><th>Sinds ${dmy(markt[0].datum)}</th></tr>` +
+    laatste.map(({r, p, p0}) => `<tr><td>${r.g}</td><td>${fmt(p.mediaan)}</td><td>${p.aantal}</td>
+      <td>${p.mediaan === p0.mediaan ? "–" : (p.mediaan < p0.mediaan ? "↓ " : "↑ ") + fmt(Math.abs(p.mediaan - p0.mediaan))}</td></tr>`).join("") : "";
+  if (!reeks.length) { $("mchart").innerHTML = `<div class="empty">Nog geen ${mdl} te koop in de lijst.</div>`; return; }
+
+  const W = 760, H = 260, L = 52, R = 70, T = 14, B = 26;
+  const datums = [...new Set(reeks.flatMap(r => r.punten.map(p => p.datum)))].sort();
+  const t = d => Date.parse(d), t0 = t(datums[0]), t1 = t(datums[datums.length - 1]);
+  const x = d => t1 === t0 ? (L + W - R) / 2 : L + (t(d) - t0) / (t1 - t0) * (W - L - R);
+  const waarden = reeks.flatMap(r => r.punten.map(p => p.mediaan));
+  let lo = Math.min(...waarden), hi = Math.max(...waarden);
+  const stap = 10000; lo = Math.floor(lo / stap) * stap - stap; hi = Math.ceil(hi / stap) * stap + stap;
+  const y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  const ticks = []; for (let v = lo; v <= hi; v += (hi - lo) > 60000 ? 20000 : stap) ticks.push(v);
+  // labels aan het einde van elke lijn, minstens 14px uit elkaar zodat ze niet overlappen
+  reeks.forEach(r => r.ly = y(r.punten[r.punten.length - 1].mediaan));
+  [...reeks].sort((a, b) => a.ly - b.ly).forEach((r, i, a) => { if (i && r.ly - a[i - 1].ly < 14) r.ly = a[i - 1].ly + 14; });
+  const xticks = datums.length <= 6 ? datums : datums.filter((_, i) => i % Math.ceil(datums.length / 6) === 0);
+  $("mchart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Mediaan vraagprijs ${mdl} per generatie">
+    <g class="grid">${ticks.map(v => `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end">${kfmt(v)}</text>`).join("")}</g>
+    ${xticks.map(d => `<text x="${x(d)}" y="${H - 6}" text-anchor="middle">${dmy(d)}</text>`).join("")}
+    ${reeks.map(r => `<polyline fill="none" stroke="var(${r.kleur})" stroke-width="2" stroke-linejoin="round"
+        points="${r.punten.map(p => x(p.datum) + "," + y(p.mediaan)).join(" ")}"/>
+      ${r.punten.length === 1 ? `<circle cx="${x(r.punten[0].datum)}" cy="${y(r.punten[0].mediaan)}" r="4" fill="var(${r.kleur})" stroke="var(--card)" stroke-width="2"/>` : ""}
+      <text class="lbl" x="${x(r.punten[r.punten.length - 1].datum) + 8}" y="${r.ly + 4}">${r.g}</text>`).join("")}
+    <line id="mcross" y1="${T}" y2="${H - B}" stroke="var(--muted)" stroke-dasharray="3 3" visibility="hidden"/>
+    <rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="transparent" id="mhit"/>
+  </svg><div class="tip" id="mtip"></div>`;
+  const svg = $("mchart").querySelector("svg"), tip = $("mtip"), cross = $("mcross");
+  $("mhit").addEventListener("mousemove", e => {
+    const b = svg.getBoundingClientRect(), mx = (e.clientX - b.left) / b.width * W;
+    const d = datums.reduce((a, c) => Math.abs(x(c) - mx) < Math.abs(x(a) - mx) ? c : a);
+    cross.setAttribute("x1", x(d)); cross.setAttribute("x2", x(d)); cross.setAttribute("visibility", "visible");
+    tip.innerHTML = `<b>${dmy(d)}</b><br>` + reeks.map(r => { const p = r.punten.find(p => p.datum === d);
+      return p ? `<i style="background:var(${r.kleur})"></i>${r.g}: ${fmt(p.mediaan)} (${p.aantal})` : ""; }).filter(Boolean).join("<br>");
+    tip.style.display = "block";
+    const px = x(d) / W * b.width;
+    tip.style.left = Math.min(px + 12, b.width - tip.offsetWidth) + "px"; tip.style.top = "8px";
+  });
+  $("mhit").addEventListener("mouseleave", () => { tip.style.display = "none"; cross.setAttribute("visibility", "hidden"); });
 }
 
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
@@ -233,29 +342,41 @@ function render() {
     (!$("drop").checked || c.prijsdaling_pct > 0) &&
     (!$("be").checked || c.land === "BE") &&
     (!$("nw").checked || c.nieuw) &&
+    (!$("fav").checked || mijn(c.id).fav) &&
+    ($("verb").checked || !mijn(c.id).verborgen) &&
     ($("biv").checked || c.biv <= max)).sort(SORTS[$("sort").value] || SORTS.score);
-  $("count").textContent = `${list.length} van ${DATA.autos.length} auto's`;
-  $("grid").innerHTML = list.length ? list.map(c => `
-    <a class="car ${c.biv > max ? "dim" : ""} ${c.prijsdaling_pct > 0 ? "dropped" : ""}" href="${esc(c.url)}" target="_blank" rel="noopener">
+  const nVerb = DATA.autos.filter(c => mijn(c.id).verborgen).length;
+  $("count").textContent = `${list.length} van ${DATA.autos.length} auto's` + (nVerb ? ` · ${nVerb} verborgen` : "");
+  $("grid").innerHTML = list.length ? list.map(c => { const m = mijn(c.id); return `
+    <div class="car ${c.biv > max ? "dim" : ""} ${c.prijsdaling_pct > 0 ? "dropped" : ""} ${m.fav ? "fav" : ""} ${m.verborgen ? "hidden" : ""}"
+         data-id="${esc(c.id)}" data-url="${esc(c.url)}">
       <div class="img" style="background-image:url('${esc(c.foto)}')">
         <div class="tags">${c.nieuw ? '<span class="tag">NIEUW</span>' : ""}
           ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}</div>
         <div class="score ${c.score >= hi ? "hi" : ""}">${c.score}</div>
       </div>
       <div class="body">
-        <div class="t">${esc(c.titel)}</div>
+        <div class="t"><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.titel)}</a></div>
         ${priceBlock(c)}
         <div class="facts">
           <span><b>${c.model || "GTS"} ${c.type || "Cabrio"}</b></span><span>${c.generatie}</span><span>${c.maand ? String(c.maand).padStart(2,"0") + "/" : ""}${c.jaar}</span>
           <span>${c.km.toLocaleString("nl-BE")} km</span><span>${c.manueel ? "Manueel" : "PDK"}</span>
           <span class="${c.biv > max ? "biv-over" : ""}">BIV ≈ ${fmt(c.biv)}</span><span>${esc(c.land)}</span>
+          <span class="online ${c.dagen_online >= DATA.config.score.lang_online_dagen ? "lang" : ""}"
+                title="Sinds de tracker de advertentie zag">${c.dagen_online ? c.dagen_online + " d te koop" : "vandaag gezien"}</span>
         </div>
         <div class="why">${esc(c.waarom.join(" · "))}</div>
         ${sitesBlock(c)}
+        ${m.notitie ? `<div class="mynote">${esc(m.notitie)}</div>` : ""}
+        <div class="acts">
+          <button data-act="fav" class="${m.fav ? "on" : ""}">${m.fav ? "★ Favoriet" : "☆ Favoriet"}</button>
+          <button data-act="notitie" class="${m.notitie ? "on" : ""}">✎ Notitie</button>
+          <button data-act="verborgen">${m.verborgen ? "↺ Terugzetten" : "✕ Verbergen"}</button>
+        </div>
         <div class="foot"><span>${esc(c.bron)} · ${esc(c.verkoper || "")}${c.plaats ? " · " + esc(c.plaats) : ""}</span>
           <span>sinds ${dmy(c.eerst_gezien)}</span></div>
       </div>
-    </a>`).join("") : '<div class="empty">Geen auto\'s die aan deze filters voldoen.</div>';
+    </div>`; }).join("") : '<div class="empty">Geen auto\'s die aan deze filters voldoen.</div>';
 }
 
 if (!DATA) {
@@ -265,15 +386,35 @@ if (!DATA) {
   if (DATA.fouten.length) $("errs").innerHTML = `<div class="err">Problemen bij ophalen: ${esc(DATA.fouten.join("; "))}</div>`;
   const jaren = [...new Set(DATA.autos.map(c => c.jaar))].sort();
   $("van").innerHTML += jaren.map(j => `<option value="${j}">${j}</option>`).join("");
-  $("grid").addEventListener("click", e => {  // site-knopjes binnen de kaart-link
-    const s = e.target.closest(".site");
-    if (s) { e.preventDefault(); window.open(s.dataset.url, "_blank", "noopener"); }
+  $("grid").addEventListener("click", e => {
+    const kaart = e.target.closest(".car");
+    if (!kaart || e.target.closest("a, textarea")) return;
+    const id = kaart.dataset.id, s = e.target.closest(".site"), knop = e.target.closest("button");
+    if (s) return window.open(s.dataset.url, "_blank", "noopener");
+    if (!knop) return window.open(kaart.dataset.url, "_blank", "noopener");  // klik op de kaart = advertentie
+    const act = knop.dataset.act;
+    if (act === "notitie") {
+      const box = kaart.querySelector("textarea");
+      if (box) { zetMijn(id, "notitie", box.value.trim()); return render(); }  // tweede klik = bewaren
+      const t = document.createElement("textarea");
+      t.value = mijn(id).notitie || "";
+      t.placeholder = "Bv. gebeld op 3/11, onderhandelbaar tot € 118.000";
+      t.addEventListener("input", () => zetMijn(id, "notitie", t.value.trim()));
+      knop.parentElement.before(t);
+      knop.textContent = "✓ Klaar";
+      t.focus();
+      return;
+    }
+    zetMijn(id, act, !mijn(id)[act]);
+    render();
   });
   // stappen van €10.000 tot de maximumprijs uit config.json
   for (let p = 100000; p < DATA.config.max_prijs; p += 10000)
     $("maxp").innerHTML += `<option value="${p}">${fmt(p)}</option>`;
   jaarTabel();
   loadPrefs();
+  $("mmodel").addEventListener("change", marktGrafiek);
+  marktGrafiek();
   ["gen","van","maxp","mdl","typ","sort",...CHECKS].forEach(id => $(id).addEventListener("change", render));
   render();
 }

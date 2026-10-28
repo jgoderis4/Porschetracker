@@ -260,16 +260,25 @@ def features(c):
             1 if c["type"] == "Targa" else 0, 1 if c["model"] == "Turbo" else 0, 1 if c["model"] == "Turbo S" else 0]
 
 
+def import_kosten(car):
+    """Geschatte kosten om een buitenlandse auto hier in te schrijven (transport, keuring, COC, platen)."""
+    k = CONFIG["import_kosten"]
+    return k.get(car["land"], k["anders"])
+
+
 def score(cars):
+    """Marktprijs en korting rekenen met de prijs 'in België' (vraagprijs + importkosten),
+    zodat een Duitse auto die €1.500 goedkoper lijkt niet als koopje telt."""
     s = CONFIG["score"]
     usable = [c for c in cars if c["prijs"] and c["jaar"]]
-    coef = solve([features(c) for c in usable], [c["prijs"] for c in usable]) if len(usable) >= 8 else None
+    landed = lambda c: c["prijs"] + c["import_kosten"]
+    coef = solve([features(c) for c in usable], [landed(c) for c in usable]) if len(usable) >= 8 else None
     for c in cars:
         pts = 50.0
         why = []
         if coef:
             c["marktprijs"] = round(sum(a * b for a, b in zip(coef, features(c))), -2)
-            deal = (c["marktprijs"] - c["prijs"]) / c["marktprijs"]
+            deal = (c["marktprijs"] - landed(c)) / c["marktprijs"]
             d = max(-s["deal_max"], min(s["deal_max"], deal * s["deal_factor"]))
             pts += d
             c["deal_pct"] = round(deal * 100, 1)
@@ -287,6 +296,8 @@ def score(cars):
             pts += s["porsche_centre"]; why.append("Porsche Centre")
         if "chrono" in txt or "sportuitlaat" in txt or "abgas" in txt or "sport exhaust" in txt:
             pts += s["chrono_of_uitlaat_vermeld"]
+        if c["dagen_online"] >= s["lang_online_dagen"]:
+            pts += s["lang_online"]; why.append(f'{c["dagen_online"]} dagen te koop: ruimte om te onderhandelen')
         pts += max(0, (CONFIG["max_km"] - c["km"]) / CONFIG["max_km"]) * s["lage_km_max"]
         pts -= min(1, c["biv"] / CONFIG["max_biv"]) * s["biv_straf_max"]
         c["score"] = round(max(0, min(100, pts)))
@@ -332,7 +343,9 @@ def push(titel, tekst, url=None, prioriteit=3):
 def push_auto(c):
     reden = "Prijsdaling" if not c["nieuw"] else "Nieuw"
     push(f"{reden}: {c['model']} {c['type']} {c['generatie']} – score {c['score']}",
-         auto_regel(c).lstrip("• ") + f"\nBIV ±€{c['biv']:,}".replace(",", ".") + f" · {c['bron']}",
+         auto_regel(c).lstrip("• ") + f"\nAll-in ±€{c['all_in']:,} (incl. BIV €{c['biv']:,}".replace(",", ".")
+         + (f" + import €{c['import_kosten']:,}".replace(",", ".") if c["import_kosten"] else "")
+         + f") · {c['bron']}",
          url=c["url"], prioriteit=4)
 
 
@@ -351,16 +364,45 @@ def dealer_bronnen():
     return bronnen
 
 
+def bron_bewaking(aantallen, historiek):
+    """Een site die haar opbouw wijzigt, geeft vaak geen fout maar stil (bijna) 0 auto's.
+    Vergelijk met de mediaan van de vorige runs. Kleine dealers (mediaan < 3) slaan we over:
+    daar is 0 vaak echt 0, en hun module geeft zelf een fout als de structuur verandert."""
+    waarschuwingen = []
+    for naam, n in aantallen.items():
+        vorige = historiek.get(naam, [])
+        if len(vorige) >= 4:
+            med = sorted(vorige)[len(vorige) // 2]
+            if med >= 3 and n < med * 0.4:
+                waarschuwingen.append(f"{naam}: maar {n} advertenties (normaal ±{med}), site gewijzigd?")
+        historiek[naam] = (vorige + [n])[-10:]
+    return waarschuwingen
+
+
+def markt_punt(cars, markt, vandaag):
+    """Mediaan-vraagprijs per model + generatie, één punt per dag (laatste run van de dag telt)."""
+    groepen = {}
+    for c in cars:
+        groepen.setdefault(f'{c["model"]}|{c["generatie"]}', []).append(c["prijs"])
+    segmenten = {k: {"mediaan": sorted(v)[len(v) // 2], "aantal": len(v)} for k, v in groepen.items()}
+    markt = [m for m in markt if m["datum"] != vandaag]
+    return markt + [{"datum": vandaag, "segmenten": segmenten}]
+
+
 def main():
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {"auto": {}}
     typecheck = state.get("typecheck", {})
-    errors, cars = [], []
+    errors, cars, aantallen = [], [], {}
     # volgorde = voorkeur bij dubbels: AutoScout24 heeft de rijkste gegevens (CO2, pk)
     for name, fn in [("AutoScout24", fetch_autoscout)] + dealer_bronnen() + [("2dehands", fetch_2dehands)]:
         try:
-            cars += fn()
+            gevonden = fn()
+            cars += gevonden
+            aantallen[name] = len(gevonden)
         except Exception as e:  # één bron die faalt mag de rest niet stoppen
             errors.append(f"{name}: {e}")
+    bron_historiek = state.get("bronnen", {})
+    errors += bron_bewaking(aantallen, bron_historiek)
 
     # filter + dubbels (zelfde auto op meerdere sites) samenvoegen
     uniek = []
@@ -388,10 +430,8 @@ def main():
         c["type"] = "Targa" if "targa" in t or "targa" in c.get("_tekst", "") else "Cabrio"
         c["biv"], c["co2_gebruikt"], c["leeftijd_jr"] = biv(c)
         uniek.append(c)
-    score(uniek)
 
     now = datetime.now().isoformat(timespec="minutes")
-    nieuw_top = []
     for c in uniek:
         old = state["auto"].get(c["id"])
         if old:
@@ -405,19 +445,29 @@ def main():
         eerste = c["prijshistoriek"][0][1]
         c["prijsdaling_pct"] = round((eerste - c["prijs"]) / eerste * 100, 1) if eerste else 0
         c["nieuw"] = not old
+        c["dagen_online"] = (date.today() - date.fromisoformat(c["eerst_gezien"][:10])).days
+        # na het samenvoegen van dubbels: prijs = laagste van alle sites
+        c["import_kosten"] = import_kosten(c)
+        c["all_in"] = c["prijs"] + c["biv"] + c["import_kosten"]
+    score(uniek)
+
+    nieuw_top = []
+    for c in uniek:
+        old = state["auto"].get(c["id"])
         c.pop("_tekst", None)
         interessant = c["score"] >= CONFIG["melding_vanaf_score"] and c["biv"] <= CONFIG["max_biv"]
         gedaald = old and old["prijs"] - c["prijs"] >= old["prijs"] * CONFIG["melding_bij_prijsdaling_pct"] / 100
         if interessant and (not old or gedaald) and state.get("laatste_run"):
             nieuw_top.append(c)
 
-    state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck,
+    markt = markt_punt(uniek, state.get("markt", []), now[:10])
+    state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
              "auto": {c["id"]: {k: c[k] for k in ("eerst_gezien", "prijshistoriek", "prijs")} for c in uniek}}
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, indent=1))
 
     uniek.sort(key=lambda c: -c["score"])
-    payload = {"bijgewerkt": now, "fouten": errors, "config": CONFIG, "autos": uniek}
+    payload = {"bijgewerkt": now, "fouten": errors, "config": CONFIG, "autos": uniek, "markt": markt}
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
 
     print(f"{now}: {len(uniek)} auto's, {len(nieuw_top)} nieuwe toppers, fouten: {errors or 'geen'}")

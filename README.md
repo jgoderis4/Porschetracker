@@ -4,7 +4,9 @@ Persoonlijke tool die 2x per dag zoekt naar tweedehands **Porsche 911 GTS en Tur
 (991/992), en de beste kandidaten rangschikt.
 
 - **Bronnen:** AutoScout24 (BE/NL/DE), 2dehands.be en Belgische dealers (Lampe, AE Cars, DCT, Bavaria Motors, Autofest)
-- **Dashboard:** alle auto's met een score, de geschatte Vlaamse BIV en de prijshistoriek
+- **Dashboard:** alle auto's met een score, de geschatte Vlaamse BIV, een all-in prijs (incl. importkosten), dagen te koop,
+  prijshistoriek en een marktgrafiek per generatie. Favorieten, verbergen en eigen notities per auto.
+- **Bronbewaking:** waarschuwing als een site plots veel minder advertenties geeft (site gewijzigd?)
 - **Dubbels samengevoegd:** dezelfde auto op meerdere sites wordt één kaart met de laagste prijs
 - **Meldingen:** een venster op de Mac en een pushmelding op de gsm (via [ntfy](https://ntfy.sh)) bij een nieuwe topper of een prijsdaling
 
