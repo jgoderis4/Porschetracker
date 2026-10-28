@@ -16,5 +16,18 @@ Melding (venster met geluid + knop "Open dashboard"; macOS-notificaties worden v
 of bij een prijsdaling ≥ `melding_bij_prijsdaling_pct`.
 Daarnaast een pushmelding naar de gsm via ntfy.sh (`push()` in tracker.py, één melding per auto, tik = advertentie).
 De geheime kanaalnaam staat in `~/Library/Application Support/porsche-tracker/ntfy_topic.txt` (nooit in de repo).
-Testen: `python3 tracker.py --test-melding`. Mobile.de zit er niet in (bot-blokkering).
-- Test de melding: `python3 tracker.py --test-melding`
+Testen: `python3 tracker.py --test-melding` (Mac-venster + gsm).
+
+## Keuzes & bewust niet
+
+Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.
+
+- **Draait lokaal op de Mac (launchd), niet in de cloud.** Een online PWA (GitHub Actions + Supabase + Vercel) is
+  overwogen, maar lokaal volstaat; bovendien blokkeren AutoScout24/2dehands vaak datacenter-IP's.
+  Nadeel dat we aanvaarden: de Mac moet om 08:00/18:00 aanstaan (of draait de run zodra hij wakker wordt).
+- **Gsm-meldingen via ntfy.sh, geen Web Push/PWA.** Geen account, geen server, geen extra pakketten nodig.
+- **Alleen Python-stdlib (3.9)**: geen `pip install`, zodat het met `/usr/bin/python3` blijft draaien.
+- **Geen Mobile.de**: bot-blokkering.
+- **Alleen Belgische dealersites** in `bronnen/`; buitenlands aanbod komt via AutoScout24.
+- **Mac-melding is een dialoogvenster**, geen notificatie: notificaties vanuit scripts worden stil tegengehouden.
+- **Repo is openbaar**: nooit geheimen committen (ntfy-kanaal, sleutels); die staan in Application Support.
