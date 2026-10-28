@@ -205,12 +205,13 @@
     <table id="stabel"></table>
     <p class="note" id="snote"></p>
 
-    <h3>Mediaan vraagprijs per dag (sinds de tracker draait)</h3>
+    <h3>Mediaan vraagprijs per 2 weken (sinds de tracker draait)</h3>
     <div class="keys" id="mkeys"></div>
     <div class="chartbox" id="mchart"></div>
     <table id="mtabel"></table>
-    <p class="note">Eén punt per dag: de middelste vraagprijs van alle auto's van dat model en die generatie op dat moment.
-      Daalt de lijn, dan zakt de markt. De grafiek wordt langer met elke run.</p>
+    <p class="note">Eén punt per 2 weken: de middelste vraagprijs van alle auto's van dat model en die generatie in die periode
+      (mediaan van de dagwaarden, zodat één uitschieter niet meetelt). Daalt de lijn, dan zakt de markt.
+      De laatste periode loopt nog en kan dus nog bewegen.</p>
   </details>
 
   <div class="grid" id="grid"></div>
@@ -448,8 +449,29 @@ function priceBlock(c) {
 // Marktgrafiek: één lijn per generatie, kleur hangt vast aan de generatie (niet aan de volgorde)
 const GENS = [["991.1", "--s1"], ["991.2", "--s2"], ["992", "--s3"]];
 const kfmt = n => "€ " + Math.round(n / 1000) + "k";
+// De tracker bewaart één punt per dag; de grafiek toont per periode van 14 dagen de mediaan van die dagpunten
+const PERIODE_DAGEN = 14;
+function perPeriode(markt) {
+  if (!markt.length) return [];
+  const start = Date.parse(markt[0].datum), groepen = new Map();
+  for (const m of markt) {
+    const i = Math.floor((Date.parse(m.datum) - start) / (PERIODE_DAGEN * 864e5));
+    if (!groepen.has(i)) groepen.set(i, []);
+    groepen.get(i).push(m);
+  }
+  const mid = a => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  return [...groepen.values()].map(dagen => {
+    const segmenten = {};
+    for (const seg of new Set(dagen.flatMap(d => Object.keys(d.segmenten)))) {
+      const s = dagen.map(d => d.segmenten[seg]).filter(Boolean);
+      segmenten[seg] = {mediaan: mid(s.map(x => x.mediaan)), aantal: Math.round(s.reduce((a, x) => a + x.aantal, 0) / s.length)};
+    }
+    return {datum: dagen[0].datum, tot: dagen[dagen.length - 1].datum, segmenten};
+  });
+}
+
 function marktGrafiek() {
-  const markt = DATA.markt || [], mdl = $("mmodel").value;
+  const markt = perPeriode(DATA.markt || []), mdl = $("mmodel").value;
   const reeks = GENS.map(([g, kleur]) => ({g, kleur, punten: markt
     .map(m => ({datum: m.datum, ...(m.segmenten[mdl + "|" + g] || {})}))
     .filter(p => p.mediaan)})).filter(r => r.punten.length);
@@ -488,7 +510,8 @@ function marktGrafiek() {
     const b = svg.getBoundingClientRect(), mx = (e.clientX - b.left) / b.width * W;
     const d = datums.reduce((a, c) => Math.abs(x(c) - mx) < Math.abs(x(a) - mx) ? c : a);
     cross.setAttribute("x1", x(d)); cross.setAttribute("x2", x(d)); cross.setAttribute("visibility", "visible");
-    tip.innerHTML = `<b>${dmy(d)}</b><br>` + reeks.map(r => { const p = r.punten.find(p => p.datum === d);
+    const per = markt.find(m => m.datum === d);
+    tip.innerHTML = `<b>${dmy(d)}${per && per.tot !== d ? " – " + dmy(per.tot) : ""}</b><br>` + reeks.map(r => { const p = r.punten.find(p => p.datum === d);
       return p ? `<i style="background:var(${r.kleur})"></i>${r.g}: ${fmt(p.mediaan)} (${p.aantal})` : ""; }).filter(Boolean).join("<br>");
     tip.style.display = "block";
     const px = x(d) / W * b.width;

@@ -14,7 +14,8 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
   (mediaan ≥ 3) terug onder 40% van normaal, dan komt er een waarschuwing (dashboard + melding). Kleine dealers geven zelf een fout.
 - **All-in prijs** = vraagprijs + BIV + `import_kosten` (per land, config.json). Marktprijs en korting rekenen met vraagprijs + import.
 - **Dagen online** = sinds de tracker de advertentie eerst zag; vanaf `lang_online_dagen` een kleine bonus (onderhandelingsruimte).
-- **Marktgrafiek**: `markt_punt()` bewaart per dag de mediaan-vraagprijs per model|generatie in state.json → dashboard.
+- **Marktgrafiek**: `markt_punt()` bewaart per dag de mediaan-vraagprijs per model|generatie in state.json → dashboard
+  (`perPeriode()` toont per 14 dagen de mediaan van de dagpunten; opslag blijft per dag).
 - **Verkochte auto's**: een auto die niet meer gevonden wordt op een site die wél werkte, verdwijnt meteen uit het
   dashboard en gaat 60 dagen naar `verkocht` in state.json (komt hij terug, dan is hij niet "nieuw" → geen dubbele melding).
   Lag de site plat (fout of bronbewaking), dan blijft de auto staan met de gegevens van de vorige run (tag "SITE OFFLINE").
