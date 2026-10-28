@@ -12,5 +12,9 @@ op AutoScout24 (BE/NL/DE), 2dehands.be en Belgische dealersites (Lampe, AE Cars,
   (macOS laat geplande taken niet in ~/Documents). **Na elke wijziging opnieuw `./install.sh` draaien.**
 - `dashboard.html` – symlink naar het gegenereerde dashboard; log: `~/Library/Application Support/porsche-tracker/tracker.log`
 
-Melding (+ dashboard opent) bij een nieuwe auto met score ≥ `melding_vanaf_score` en BIV ≤ `max_biv`,
-of bij een prijsdaling ≥ `melding_bij_prijsdaling_pct`. Mobile.de zit er niet in (bot-blokkering).
+Melding (venster met geluid + knop "Open dashboard"; macOS-notificaties worden vanuit scripts tegengehouden) bij een nieuwe auto met score ≥ `melding_vanaf_score` en BIV ≤ `max_biv`,
+of bij een prijsdaling ≥ `melding_bij_prijsdaling_pct`.
+Daarnaast een pushmelding naar de gsm via ntfy.sh (`push()` in tracker.py, één melding per auto, tik = advertentie).
+De geheime kanaalnaam staat in `~/Library/Application Support/porsche-tracker/ntfy_topic.txt` (nooit in de repo).
+Testen: `python3 tracker.py --test-melding`. Mobile.de zit er niet in (bot-blokkering).
+- Test de melding: `python3 tracker.py --test-melding`

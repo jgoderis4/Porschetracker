@@ -11,6 +11,7 @@ Alleen standaardbibliotheek, werkt met de Python 3.9 die macOS meelevert.
 import importlib
 import json
 import re
+import secrets
 import subprocess
 import sys
 import time
@@ -26,6 +27,8 @@ TEMPLATE = ROOT / "dashboard_template.html"
 DATA_DIR = Path.home() / "Library" / "Application Support" / "porsche-tracker"
 STATE_FILE = DATA_DIR / "state.json"
 DASHBOARD = DATA_DIR / "dashboard.html"
+# Geheime ntfy-kanaalnaam: wie hem kent, kan meelezen. Staat bewust niet in de repo.
+NTFY_TOPIC_FILE = DATA_DIR / "ntfy_topic.txt"
 
 ECHTE_GTS = re.compile(r"carrera\s*(4\s*)?gts|targa\s*(4\s*)?gts|\b4\s*gts|\bgts\s*cabr|99[12](\.\d)?\s*gts"
                        r"|\d\.\d\s*gts|^gts")
@@ -292,10 +295,50 @@ def score(cars):
 
 # ---------------------------------------------------------------- hoofdlus
 
-def notify(title, msg):
-    msg = msg.replace('"', "'")
-    subprocess.run(["osascript", "-e", f'display notification "{msg}" with title "{title}" sound name "Glass"'],
-                   check=False)
+def melding(msg, knop_dashboard=True):
+    """Venster met geluid i.p.v. een macOS-notificatie: die worden vanuit scripts vaak stil
+    tegengehouden (Scripteditor zonder toestemming) en openen bij klikken niet het dashboard."""
+    msg = msg.replace("\\", "").replace('"', "'")
+    knoppen = '{"Later", "Open dashboard"} default button "Open dashboard"' if knop_dashboard else '{"OK"}'
+    subprocess.Popen(["afplay", "/System/Library/Sounds/Glass.aiff"])
+    r = subprocess.run(["osascript", "-e", f'display dialog "{msg}" with title "Porsche GTS tracker" '
+                        f'buttons {knoppen} with icon note giving up after 3600'],
+                       capture_output=True, text=True, check=False)
+    if "Open dashboard" in r.stdout:
+        subprocess.run(["open", str(DASHBOARD)], check=False)
+
+
+def ntfy_topic():
+    if not NTFY_TOPIC_FILE.exists():
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        NTFY_TOPIC_FILE.write_text("porsche-" + secrets.token_urlsafe(18) + "\n")
+    return NTFY_TOPIC_FILE.read_text().strip()
+
+
+def push(titel, tekst, url=None, prioriteit=3):
+    """Pushmelding naar de ntfy-app op je gsm (abonneer je op het kanaal uit ntfy_topic.txt).
+    JSON i.p.v. headers zodat € en andere tekens gewoon werken. Een fout mag de run niet stoppen."""
+    bericht = {"topic": ntfy_topic(), "title": titel, "message": tekst, "priority": prioriteit, "tags": ["red_car"]}
+    if url:
+        bericht["click"] = url
+    try:
+        req = urllib.request.Request("https://ntfy.sh", data=json.dumps(bericht).encode(),
+                                     headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=15).close()
+    except Exception as e:
+        print(f"Pushmelding mislukt: {e}")
+
+
+def push_auto(c):
+    reden = "Prijsdaling" if not c["nieuw"] else "Nieuw"
+    push(f"{reden}: {c['model']} {c['type']} {c['generatie']} – score {c['score']}",
+         auto_regel(c).lstrip("• ") + f"\nBIV ±€{c['biv']:,}".replace(",", ".") + f" · {c['bron']}",
+         url=c["url"], prioriteit=4)
+
+
+def auto_regel(c):
+    return (f"• {c['model']} {c['type']} {c['generatie']} {c['jaar']}, {c['km']:,} km, "
+            f"€{c['prijs']:,} – score {c['score']}").replace(",", ".")
 
 
 def dealer_bronnen():
@@ -378,16 +421,28 @@ def main():
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
 
     print(f"{now}: {len(uniek)} auto's, {len(nieuw_top)} nieuwe toppers, fouten: {errors or 'geen'}")
+    if "--geen-melding" in sys.argv:
+        return
     if nieuw_top:
-        best = nieuw_top[0]
-        notify("Porsche GTS tracker",
-               f"{len(nieuw_top)} interessante auto('s). Top: {best['generatie']} {best['model']} {best['type']} {best['jaar']}, "
-               f"€{best['prijs']:,} – score {best['score']}".replace(",", "."))
-        if "--geen-open" not in sys.argv:
-            subprocess.run(["open", str(DASHBOARD)], check=False)
+        nieuw_top.sort(key=lambda c: -c["score"])
+        regels = "\n".join(auto_regel(c) for c in nieuw_top[:5])
+        meer = f"\n… en nog {len(nieuw_top) - 5}" if len(nieuw_top) > 5 else ""
+        for c in nieuw_top[:5]:
+            push_auto(c)
+        if len(nieuw_top) > 5:
+            push("Porsche-tracker", f"… en nog {len(nieuw_top) - 5} andere: zie dashboard")
+        melding(f"{len(nieuw_top)} nieuwe interessante auto('s) of prijsdaling:\n\n{regels}{meer}")
     elif errors:
-        notify("Porsche GTS tracker", "Fout bij ophalen: " + "; ".join(errors)[:120])
+        push("Porsche-tracker: fout bij ophalen", "; ".join(errors)[:300], prioriteit=2)
+        melding("Fout bij ophalen: " + "; ".join(errors)[:200], knop_dashboard=False)
 
 
 if __name__ == "__main__":
-    main()
+    if "--test-melding" in sys.argv:
+        push("Testmelding: GTS Cabrio 991.1 – score 80",
+             "GTS Cabrio 991.1 2015, 34.859 km, €105.800 – score 80\nZo ziet een melding op je gsm eruit.",
+             url="https://ntfy.sh/" + ntfy_topic())
+        melding("Testmelding: zo ziet een melding eruit.\n\n"
+                "• GTS Cabrio 991.1 2015, 34.859 km, €105.800 – score 80")
+    else:
+        main()
