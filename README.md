@@ -1,4 +1,4 @@
-# Porsche-tracker
+# Porsche GTS/Turbo tracker
 
 Persoonlijke tool die 2x per dag zoekt naar tweedehands **Porsche 911 GTS en Turbo (S)**, als Cabriolet of Targa
 (991/992), en de beste kandidaten rangschikt.

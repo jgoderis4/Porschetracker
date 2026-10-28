@@ -1,4 +1,4 @@
-# porsche-tracker
+# Porsche GTS/Turbo tracker (porsche-tracker)
 
 Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS en Turbo (S), Cabriolet en Targa (991/992)
 op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Cars, DCT, Bavaria Motors, Autofest), en schrijft een dashboard met score + geschatte Vlaamse BIV.
@@ -15,6 +15,10 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
 - **All-in prijs** = vraagprijs + BIV + `import_kosten` (per land, config.json). Marktprijs en korting rekenen met vraagprijs + import.
 - **Dagen online** = sinds de tracker de advertentie eerst zag; vanaf `lang_online_dagen` een kleine bonus (onderhandelingsruimte).
 - **Marktgrafiek**: `markt_punt()` bewaart per dag de mediaan-vraagprijs per model|generatie in state.json → dashboard.
+- **Verkochte auto's**: een auto die niet meer gevonden wordt op een site die wél werkte, verdwijnt meteen uit het
+  dashboard en gaat 60 dagen naar `verkocht` in state.json (komt hij terug, dan is hij niet "nieuw" → geen dubbele melding).
+  Lag de site plat (fout of bronbewaking), dan blijft de auto staan met de gegevens van de vorige run (tag "SITE OFFLINE").
+  Advertenties met "verkocht/sold/gereserveerd" in de titel worden overgeslagen.
 - **Favorieten / verbergen / notities** staan alleen in de browser (localStorage `porsche-mijn`), niet in Python:
   verborgen auto's geven dus nog wel meldingen.
 - `dashboard.html` – symlink naar het gegenereerde dashboard; log: `~/Library/Application Support/porsche-tracker/tracker.log`

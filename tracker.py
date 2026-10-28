@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Porsche 911 GTS / Turbo / Turbo S (Cabriolet + Targa) tracker.
+"""Porsche GTS/Turbo tracker: 911 GTS / Turbo / Turbo S (Cabriolet + Targa).
 
 Haalt advertenties op van AutoScout24 (BE/NL/DE/LU), Belgische dealersites (bronnen/)
 en 2dehands.be, voegt dezelfde auto op meerdere sites samen, berekent een
@@ -34,6 +34,9 @@ NTFY_TOPIC_FILE = DATA_DIR / "ntfy_topic.txt"
 ECHTE_GTS = re.compile(r"carrera\s*(4\s*)?gts|targa\s*(4\s*)?gts|\b4\s*gts|\bgts\s*cabr|99[12](\.\d)?\s*gts"
                        r"|\d\.\d\s*gts|^gts")
 OPEN_DAK = re.compile(r"cabr|targa|convertible|verdeck|soft\s*-?top|stoffdach|stoffen dak")
+# sommige sites laten een verkochte auto nog even staan met "VERKOCHT" in de titel
+VERKOCHT = re.compile(r"\b(verkocht|sold|vendu|verkauft|gereserveerd|reserved|réservé|reserviert)\b")
+VERKOCHT_BEWAREN_DAGEN = 60  # zo lang onthouden we een verkochte auto (komt hij terug, dan is hij niet "nieuw")
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124 Safari/537.36")
@@ -315,7 +318,7 @@ def melding(msg, knop_dashboard=True):
     msg = msg.replace("\\", "").replace('"', "'")
     knoppen = '{"Later", "Open dashboard"} default button "Open dashboard"' if knop_dashboard else '{"OK"}'
     subprocess.Popen(["afplay", "/System/Library/Sounds/Glass.aiff"])
-    r = subprocess.run(["osascript", "-e", f'display dialog "{msg}" with title "Porsche GTS tracker" '
+    r = subprocess.run(["osascript", "-e", f'display dialog "{msg}" with title "Porsche GTS/Turbo tracker" '
                         f'buttons {knoppen} with icon note giving up after 3600'],
                        capture_output=True, text=True, check=False)
     if "Open dashboard" in r.stdout:
@@ -469,7 +472,7 @@ def markt_punt(cars, markt, vandaag):
 def main():
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {"auto": {}}
     typecheck = state.get("typecheck", {})
-    errors, cars, aantallen = [], [], {}
+    errors, cars, aantallen, mislukt = [], [], {}, set()
     # volgorde = voorkeur bij dubbels: AutoScout24 heeft de rijkste gegevens (CO2, pk)
     for name, fn in [("AutoScout24", fetch_autoscout)] + dealer_bronnen() + [("2dehands", fetch_2dehands)]:
         try:
@@ -478,8 +481,11 @@ def main():
             aantallen[name] = len(gevonden)
         except Exception as e:  # één bron die faalt mag de rest niet stoppen
             errors.append(f"{name}: {e}")
+            mislukt.add(name)
     bron_historiek = state.get("bronnen", {})
-    errors += bron_bewaking(aantallen, bron_historiek)
+    waarschuwingen = bron_bewaking(aantallen, bron_historiek)
+    errors += waarschuwingen
+    mislukt |= {w.split(":")[0] for w in waarschuwingen}  # verdacht weinig: telt als mislukt
 
     # filter + dubbels (zelfde auto op meerdere sites) samenvoegen
     uniek = []
@@ -487,7 +493,7 @@ def main():
         t = c["titel"].lower()
         if not c["prijs"] or c["prijs"] > CONFIG["max_prijs"] or c["km"] > CONFIG["max_km"]:
             continue
-        if (c["jaar"] or 0) < CONFIG["vanaf_bouwjaar"] or "boxster" in t:
+        if (c["jaar"] or 0) < CONFIG["vanaf_bouwjaar"] or "boxster" in t or VERKOCHT.search(t):
             continue
         c["model"] = model(c)
         if not c["model"]:  # bv. "Carrera 4S ... GTS Carbon-pakket" of "Carrera 3.0 Turbo"
@@ -509,8 +515,32 @@ def main():
         uniek.append(c)
 
     now = datetime.now().isoformat(timespec="minutes")
+    verkocht = {i: v for i, v in state.get("verkocht", {}).items()
+                if (date.today() - date.fromisoformat(v["weg_sinds"][:10])).days <= VERKOCHT_BEWAREN_DAGEN}
+    # zelfde auto, ander id (bv. AutoScout24 lag plat, de auto staat ook op 2dehands): oud id behouden
+    gevonden = {c["id"] for c in uniek}
     for c in uniek:
-        old = state["auto"].get(c["id"])
+        if c["id"] not in state["auto"]:
+            oud = next((i for i, o in state["auto"].items()
+                        if i not in gevonden and "laatst" in o and zelfde_auto(o["laatst"], c)), None)
+            if oud:
+                gevonden.discard(c["id"])
+                c["id"] = oud
+                gevonden.add(oud)
+    for i, old in state["auto"].items():
+        if i in gevonden:
+            continue
+        bronnen = {s["bron"] for s in old.get("laatst", {}).get("te_koop_op", [])}
+        if bronnen and bronnen <= mislukt:  # site lag plat: auto niet weggooien, vorige gegevens tonen
+            uniek.append(dict(old["laatst"], bron_offline=True))
+        else:  # niet meer te koop op een site die wel werkte: verkocht (of offline gehaald)
+            laatst = old.get("laatst", {})
+            verkocht[i] = {"titel": laatst.get("titel", ""), "prijs": old["prijs"], "url": laatst.get("url"),
+                           "weg_sinds": now, "eerst_gezien": old["eerst_gezien"],
+                           "prijshistoriek": old["prijshistoriek"]}
+    for c in uniek:
+        old = state["auto"].get(c["id"]) or verkocht.pop(c["id"], None)  # terug na verkocht: niet opnieuw "nieuw"
+        c.setdefault("bron_offline", False)
         if old:
             c["eerst_gezien"] = old["eerst_gezien"]
             c["prijshistoriek"] = old["prijshistoriek"]
@@ -522,6 +552,7 @@ def main():
         eerste = c["prijshistoriek"][0][1]
         c["prijsdaling_pct"] = round((eerste - c["prijs"]) / eerste * 100, 1) if eerste else 0
         c["nieuw"] = not old
+        c["_vorige_prijs"] = old and old["prijs"]
         c["dagen_online"] = (date.today() - date.fromisoformat(c["eerst_gezien"][:10])).days
         # na het samenvoegen van dubbels: prijs = laagste van alle sites
         c["import_kosten"] = import_kosten(c)
@@ -530,11 +561,13 @@ def main():
 
     nieuw_top = []
     for c in uniek:
-        old = state["auto"].get(c["id"])
         c.pop("_tekst", None)
+        vorige = c.pop("_vorige_prijs")
+        if c["bron_offline"]:
+            continue
         interessant = c["score"] >= CONFIG["melding_vanaf_score"] and c["biv"] <= CONFIG["max_biv"]
-        gedaald = old and old["prijs"] - c["prijs"] >= old["prijs"] * CONFIG["melding_bij_prijsdaling_pct"] / 100
-        if interessant and (not old or gedaald) and state.get("laatste_run"):
+        gedaald = vorige and vorige - c["prijs"] >= vorige * CONFIG["melding_bij_prijsdaling_pct"] / 100
+        if interessant and (c["nieuw"] or gedaald) and state.get("laatste_run"):
             nieuw_top.append(c)
 
     markt = markt_punt(uniek, state.get("markt", []), now[:10])
@@ -544,13 +577,16 @@ def main():
     except Exception as e:
         errors.append(f"marktstaal: {e}")
     state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
-             "marktstaal": staal,
-             "auto": {c["id"]: {k: c[k] for k in ("eerst_gezien", "prijshistoriek", "prijs")} for c in uniek}}
+             "marktstaal": staal, "verkocht": verkocht,
+             "auto": {c["id"]: {"eerst_gezien": c["eerst_gezien"], "prijshistoriek": c["prijshistoriek"],
+                                "prijs": c["prijs"], "laatst": c} for c in uniek}}
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     STATE_FILE.write_text(json.dumps(state, indent=1))
 
     uniek.sort(key=lambda c: -c["score"])
     payload = {"bijgewerkt": now, "fouten": errors, "config": CONFIG, "autos": uniek, "markt": markt,
+               "verkocht": [dict(v, id=i) for i, v in sorted(verkocht.items(), key=lambda kv: kv[1]["weg_sinds"],
+                                                                reverse=True)],
                "waardecurve": waardecurve(staal) if staal else None}
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
 
@@ -564,10 +600,10 @@ def main():
         for c in nieuw_top[:5]:
             push_auto(c)
         if len(nieuw_top) > 5:
-            push("Porsche-tracker", f"… en nog {len(nieuw_top) - 5} andere: zie dashboard")
+            push("Porsche GTS/Turbo tracker", f"… en nog {len(nieuw_top) - 5} andere: zie dashboard")
         melding(f"{len(nieuw_top)} nieuwe interessante auto('s) of prijsdaling:\n\n{regels}{meer}")
     elif errors:
-        push("Porsche-tracker: fout bij ophalen", "; ".join(errors)[:300], prioriteit=2)
+        push("Porsche GTS/Turbo tracker: fout bij ophalen", "; ".join(errors)[:300], prioriteit=2)
         melding("Fout bij ophalen: " + "; ".join(errors)[:200], knop_dashboard=False)
 
 

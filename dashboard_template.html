@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Porsche GTS Tracker</title>
+<title>Porsche GTS/Turbo tracker</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CclipPath id='s'%3E%3Cpath d='M4 2.5h24V15c0 8.2-5.6 12.8-12 15.5C9.6 27.8 4 23.2 4 15z'/%3E%3C/clipPath%3E%3C/defs%3E%3Cg clip-path='url%28%23s%29'%3E%3Crect width='32' height='32' fill='%23d4a72c'/%3E%3Crect x='4' y='2.0' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='4' y='4.2' width='12' height='2.2' fill='%23141414'/%3E%3Crect x='4' y='6.4' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='4' y='8.6' width='12' height='2.2' fill='%23141414'/%3E%3Crect x='4' y='10.8' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='4' y='13.0' width='12' height='2.2' fill='%23141414'/%3E%3Crect x='4' y='15.2' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='16' y='16.0' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='16' y='18.2' width='12' height='2.2' fill='%23141414'/%3E%3Crect x='16' y='20.4' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='16' y='22.6' width='12' height='2.2' fill='%23141414'/%3E%3Crect x='16' y='24.8' width='12' height='2.2' fill='%23b3121b'/%3E%3Crect x='16' y='27.0' width='12' height='2.2' fill='%23141414'/%3E%3Crect x='16' y='29.2' width='12' height='2.2' fill='%23b3121b'/%3E%3C/g%3E%3Cpath d='M4 2.5h24V15c0 8.2-5.6 12.8-12 15.5C9.6 27.8 4 23.2 4 15z' fill='none' stroke='%23141414' stroke-width='1.6'/%3E%3Cpath d='M12 10.5h8v5c0 3-2 4.6-4 5.6-2-1-4-2.6-4-5.6z' fill='%23d4a72c' stroke='%23141414' stroke-width='1.2'/%3E%3C/svg%3E">
 <style>
   :root {
@@ -42,6 +42,11 @@
   .tag { background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
   .tag.drop { background: var(--good); }
   .tag.terug { background: var(--accent); }
+  .tag.offline { background: var(--muted); }
+  h1 small { font-size: 0.55em; font-weight: 500; color: var(--muted); }
+  .weg { background: var(--card); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; margin-top: 12px; font-size: 13px; }
+  .weg summary { cursor: pointer; }
+  .weg ul { margin: 8px 0 0; padding-left: 18px; }
   .car.dropped { border: 2px solid var(--good); }
   .old { text-decoration: line-through; color: var(--muted); font-size: 14px; font-weight: 500; margin-right: 6px; }
   .dropline { color: var(--good); font-size: 13px; font-weight: 600; }
@@ -97,9 +102,10 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Porsche 911 GTS &amp; Turbo — Cabrio &amp; Targa</h1>
+  <h1>Porsche GTS/Turbo tracker <small>911 Cabrio &amp; Targa</small></h1>
   <div class="sub" id="sub"></div>
   <div id="errs"></div>
+  <div id="weg"></div>
 
   <div class="bar">
     <label>Generatie
@@ -242,6 +248,20 @@ function terugZetten() {
       zetMijn(c.id, "terug", {van: m.verborgen_prijs, naar: c.prijs, op: vandaag});
     }
   }
+}
+// Verkochte auto's (niet meer gevonden op een site die wel werkte) verdwijnen uit de lijst.
+// Was het een favoriet of had je er een notitie bij, dan tonen we dat nog 14 dagen bovenaan.
+function verkochtBlok() {
+  const recent = DATA.verkocht.filter(v => Date.parse(DATA.bijgewerkt) - Date.parse(v.weg_sinds) < 14 * 864e5);
+  const lijn = v => `<li><a href="${esc(v.url || "#")}" target="_blank" rel="noopener">${esc(v.titel || "(titel onbekend)")}</a> · ${fmt(v.prijs)}
+    · verdwenen op ${dmy(v.weg_sinds)}${mijn(v.id).notitie ? ` · <i>${esc(mijn(v.id).notitie)}</i>` : ""}</li>`;
+  const mijne = recent.filter(v => mijn(v.id).fav || mijn(v.id).notitie);
+  $("weg").innerHTML = (mijne.length ? `<div class="err">Verkocht of offline gehaald: ${mijne.length === 1 ? "je favoriet" : mijne.length + " van je favorieten"}<ul>${mijne.map(lijn).join("")}</ul></div>` : "")
+    + (recent.length ? `<details class="weg"><summary>${recent.length} auto('s) verkocht of offline gehaald in de laatste 14 dagen</summary><ul>${recent.map(lijn).join("")}</ul></details>` : "");
+  // favorieten/notities van auto's die al lang weg zijn: opruimen
+  const bekend = new Set([...DATA.autos, ...DATA.verkocht].map(c => c.id));
+  for (const id of Object.keys(MIJN)) if (!bekend.has(id)) delete MIJN[id];
+  try { localStorage.setItem(MIJN_KEY, JSON.stringify(MIJN)); } catch (e) {}
 }
 const terugTag = m => m.terug && (Date.parse(DATA.bijgewerkt) - Date.parse(m.terug.op)) < 14 * 864e5
   ? `<span class="tag terug" title="Was verborgen aan ${fmt(m.terug.van)}">↺ TERUG: −${fmt(m.terug.van - m.terug.naar)}</span>` : "";
@@ -452,7 +472,8 @@ function render() {
          data-id="${esc(c.id)}" data-url="${esc(c.url)}">
       <div class="img" style="background-image:url('${esc(c.foto)}')">
         <div class="tags">${c.nieuw ? '<span class="tag">NIEUW</span>' : ""}
-          ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}${terugTag(m)}</div>
+          ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}${terugTag(m)}
+          ${c.bron_offline ? '<span class="tag offline" title="De site lag plat bij de laatste run: gegevens van de vorige keer">SITE OFFLINE</span>' : ""}</div>
         <div class="score ${c.score >= hi ? "hi" : ""}">${c.score}</div>
       </div>
       <div class="body">
@@ -516,6 +537,7 @@ if (!DATA) {
   for (let p = 100000; p < DATA.config.max_prijs; p += 10000)
     $("maxp").innerHTML += `<option value="${p}">${fmt(p)}</option>`;
   terugZetten();
+  if (DATA.verkocht) verkochtBlok();
   jaarTabel();
   loadPrefs();
   $("mmodel").addEventListener("change", () => { waardeGrafiek(); marktGrafiek(); });
