@@ -1,0 +1,39 @@
+{
+  "max_prijs": 150000,
+  "max_km": 90000,
+  "vanaf_bouwjaar": 2014,
+  "max_biv": 4000,
+  "landen_autoscout": ["B", "NL", "D"],
+  "melding_vanaf_score": 65,
+  "melding_bij_prijsdaling_pct": 3,
+
+  "score": {
+    "deal_factor": 150,
+    "deal_max": 30,
+    "manueel": 12,
+    "atmo_991_1": 6,
+    "belgie": 8,
+    "porsche_approved": 6,
+    "porsche_centre": 4,
+    "chrono_of_uitlaat_vermeld": 2,
+    "lage_km_max": 8,
+    "biv_straf_max": 8
+  },
+
+  "biv": {
+    "q": 1.245,
+    "f_benzine": 1.0,
+    "c_euro6": 28.54,
+    "minimum": 61.5,
+    "maximum": 14000,
+    "co2_standaard": {
+      "GTS": {
+        "991.1": {"manueel": 233, "pdk": 223},
+        "991.2": {"manueel": 228, "pdk": 212},
+        "992":   {"manueel": 262, "pdk": 255}
+      },
+      "Turbo":   {"991.1": 227, "991.2": 212, "992": 272},
+      "Turbo S": {"991.1": 231, "991.2": 216, "992": 278}
+    }
+  }
+}
