@@ -41,6 +41,12 @@
   .tags { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; }
   .tag { background: #2563eb; color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
   .tag.drop { background: var(--good); }
+  .tag.nu { background: #d92d20; }
+  .gezakt { background: var(--card); border: 2px solid var(--good); padding: 8px 12px; border-radius: 8px; margin-top: 12px; font-size: 13px; }
+  .gezakt b { color: var(--good); }
+  .gezakt ul { margin: 6px 0 0; padding-left: 18px; }
+  .gezakt a { color: inherit; }
+  .car.flits { outline: 3px solid #d92d20; outline-offset: 2px; }
   .tag.terug { background: var(--accent); }
   .tag.offline { background: var(--muted); }
   .kop { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
@@ -134,6 +140,7 @@
   </div>
   <div class="sub" id="sub"></div>
   <div id="errs"></div>
+  <div id="gezakt"></div>
   <div id="weg"></div>
 
   <div class="bar">
@@ -158,6 +165,7 @@
         <option value="prijs_op">Prijs (laag → hoog)</option>
         <option value="prijs_af">Prijs (hoog → laag)</option>
         <option value="deal">Grootste korting t.o.v. markt</option>
+        <option value="recent_d">Recentste prijsdaling</option>
         <option value="daling">Grootste prijsdaling</option>
         <option value="km">Kilometers (laag → hoog)</option>
         <option value="jaar">Bouwjaar (nieuw → oud)</option>
@@ -326,7 +334,35 @@ async function pushAuto(c, knop) {
 const terugTag = m => m.terug && (Date.parse(DATA.bijgewerkt) - Date.parse(m.terug.op)) < 14 * 864e5
   ? `<span class="tag terug" title="Was verborgen aan ${fmt(m.terug.van)}">↺ TERUG: −${fmt(m.terug.van - m.terug.naar)}</span>` : "";
 
+// Laatste prijswijziging als die een daling was, binnen de laatste 7 dagen (dit triggert ook de melding)
+function recenteDaling(c) {
+  const h = c.prijshistoriek;
+  if (h.length < 2) return null;
+  const [op, naar] = h[h.length - 1], van = h[h.length - 2][1];
+  if (naar >= van || Date.parse(DATA.bijgewerkt) - Date.parse(op) > 7 * 864e5) return null;
+  return { van, naar, op, pct: Math.round((van - naar) / van * 1000) / 10 };
+}
+function gezaktBlok() {
+  const lijst = DATA.autos.map(c => [c, recenteDaling(c)]).filter(([, d]) => d)
+    .sort(([, a], [, b]) => b.op.localeCompare(a.op));
+  $("gezakt").innerHTML = lijst.length ? `<div class="gezakt"><b>↓ Prijsdaling in de laatste 7 dagen</b><ul>${lijst.map(([c, d]) =>
+    `<li><a href="#" data-naar="${esc(c.id)}">${esc(c.model)} ${esc(c.type)} ${esc(c.generatie)} ${c.jaar}, ${c.km.toLocaleString("nl-BE")} km</a>
+     · ${fmt(d.van)} → <b>${fmt(d.naar)}</b> (−${fmt(d.van - d.naar)}, −${String(d.pct).replace(".", ",")}%)
+     · ${dmy(d.op)} · score ${c.score}</li>`).join("")}</ul></div>` : "";
+}
+$("gezakt").addEventListener("click", e => {
+  const a = e.target.closest("[data-naar]");
+  if (!a) return;
+  e.preventDefault();
+  const kaart = document.querySelector(`.car[data-id="${CSS.escape(a.dataset.naar)}"]`);
+  if (!kaart) return window.open(DATA.autos.find(c => c.id === a.dataset.naar).url, "_blank", "noopener");  // weggefilterd
+  kaart.scrollIntoView({ behavior: "smooth", block: "center" });
+  kaart.classList.add("flits");
+  setTimeout(() => kaart.classList.remove("flits"), 2500);
+});
+
 const SORTS = {
+  recent_d: (a, b) => (recenteDaling(b)?.op || "").localeCompare(recenteDaling(a)?.op || "") || b.score - a.score,
   score:    (a, b) => b.score - a.score,
   prijs_op: (a, b) => a.prijs - b.prijs,
   prijs_af: (a, b) => b.prijs - a.prijs,
@@ -626,6 +662,7 @@ function render() {
          data-id="${esc(c.id)}" data-url="${esc(c.url)}">
       <div class="img" style="background-image:url('${esc(c.foto)}')">
         <div class="tags">${c.nieuw ? '<span class="tag">NIEUW</span>' : ""}
+          ${(d => d ? `<span class="tag nu" title="${fmt(d.van)} → ${fmt(d.naar)}">↓ −${fmt(d.van - d.naar)} OP ${dmy(d.op)}</span>` : "")(recenteDaling(c))}
           ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}${terugTag(m)}
           ${c.bron_offline ? '<span class="tag offline" title="De site lag plat bij de laatste run: gegevens van de vorige keer">SITE OFFLINE</span>' : ""}</div>
         <div class="score ${c.score >= hi ? "hi" : ""}">${c.score}</div>
@@ -727,6 +764,7 @@ if (!DATA) {
   for (let p = 100000; p < DATA.config.max_prijs; p += 10000)
     $("maxp").innerHTML += `<option value="${p}">${fmt(p)}</option>`;
   terugZetten();
+  gezaktBlok();
   if (DATA.verkocht) verkochtBlok();
   jaarTabel();
   snelheidTabel();

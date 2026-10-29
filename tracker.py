@@ -371,8 +371,14 @@ def push(titel, tekst, url=None, prioriteit=3):
         print(f"Pushmelding mislukt: {e}")
 
 
+def daling(c):
+    """Bedrag van de laatste prijsdaling (0 als de laatste wijziging geen daling was)."""
+    h = c["prijshistoriek"]
+    return h[-2][1] - h[-1][1] if len(h) > 1 and h[-1][1] < h[-2][1] else 0
+
+
 def push_auto(c):
-    reden = "Prijsdaling" if not c["nieuw"] else "Nieuw"
+    reden = f"Prijsdaling −€{nl(daling(c))}" if not c["nieuw"] and daling(c) else "Nieuw"
     push(f"{reden}: {c['model']} {c['type']} {c['generatie']} – score {c['score']}",
          auto_regel(c).lstrip("• ") + f"\nAll-in ±€{c['all_in']:,} (incl. BIV €{c['biv']:,}".replace(",", ".")
          + (f" + import €{c['import_kosten']:,}".replace(",", ".") if c["import_kosten"] else "")
@@ -386,7 +392,9 @@ def nl(n):
 
 
 def auto_regel(c):
-    return f"• {c['model']} {c['type']} {c['generatie']} {c['jaar']}, {nl(c['km'])} km, €{nl(c['prijs'])} – score {c['score']}"
+    d = 0 if c["nieuw"] else daling(c)
+    was = f" (was €{nl(c['prijs'] + d)}, −€{nl(d)})" if d else ""
+    return f"• {c['model']} {c['type']} {c['generatie']} {c['jaar']}, {nl(c['km'])} km, €{nl(c['prijs'])}{was} – score {c['score']}"
 
 
 def dealer_bronnen():

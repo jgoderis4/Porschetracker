@@ -32,7 +32,8 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
 - `dashboard.html` – symlink naar het gegenereerde dashboard; log: `~/Library/Application Support/porsche-tracker/tracker.log`
 
 Melding (venster met geluid + knop "Open dashboard"; macOS-notificaties worden vanuit scripts tegengehouden) bij een nieuwe auto met score ≥ `melding_vanaf_score` en BIV ≤ `max_biv`,
-of bij een prijsdaling ≥ `melding_bij_prijsdaling_pct`.
+of bij een prijsdaling ≥ `melding_bij_prijsdaling_pct` (melding toont oude prijs + bedrag via `daling()`;
+het dashboard toont dalingen van de laatste 7 dagen in een blok bovenaan, klik = naar de kaart).
 Daarnaast een pushmelding naar de gsm via ntfy.sh (`push()` in tracker.py, één melding per auto, tik = advertentie).
 De geheime kanaalnaam staat in `~/Library/Application Support/porsche-tracker/ntfy_topic.txt` (nooit in de repo).
 Testen: `python3 tracker.py --test-melding` (Mac-venster + gsm).
