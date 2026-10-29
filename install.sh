@@ -26,7 +26,8 @@ if [ "$1" = "--uninstall" ]; then rm -f "$PLIST" "$KPLIST"; echo "Verwijderd (ge
 mkdir -p "$APP" "$HOME/Library/LaunchAgents"
 cp "$DIR/tracker.py" "$DIR/knop.py" "$DIR/config.json" "$DIR/dashboard_template.html" "$APP/"
 rm -rf "$APP/bronnen" && mkdir -p "$APP/bronnen" && cp "$DIR"/bronnen/*.py "$APP/bronnen/" 2>/dev/null || true
-ln -sfn "$APP/dashboard.html" "$DIR/dashboard.html"
+# alleen als de link ontbreekt of fout is: telkens vervangen laat iCloud "dashboard 2.html"-kopieën maken
+[ "$(readlink "$DIR/dashboard.html")" = "$APP/dashboard.html" ] || ln -sfn "$APP/dashboard.html" "$DIR/dashboard.html"
 
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

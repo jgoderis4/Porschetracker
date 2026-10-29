@@ -1,7 +1,9 @@
 {
   "max_prijs": 150000,
   "max_km": 90000,
-  "vanaf_bouwjaar": 2014,
+  "max_km_997": 130000,
+  "max_km_uitleg": "Een 997 (2007-2012) heeft bijna altijd meer km: daarom een eigen grens.",
+  "vanaf_bouwjaar": 2007,
   "max_biv": 4000,
   "landen_autoscout": ["B", "NL", "D", "L"],
   "melding_vanaf_score": 61,
@@ -13,13 +15,14 @@
   "kost_uitleg": "Totale kost als je de auto kost_jaren houdt: afschrijving (waardecurve) + BIV + import + verkeersbelasting + onderhoud. Verzekering niet meegeteld.",
   "kost_jaren": 3,
   "onderhoud_per_jaar": 2000,
+  "onderhoud_per_jaar_997": 3000,
   "verkeersbelasting": {
     "uitleg": "Vlaamse jaarlijkse verkeersbelasting, tarief 01.07.2026-30.06.2027 (vlaanderen.be), elk jaar op 1 juli nakijken. Plus 10% gemeente-opdeciem. Vanaf bouwjaar 2021 CO2- en euronormcorrectie (benzine Euro 6: -15%).",
     "tarief_per_fiscale_pk": {"15": 977.76, "16": 1280.76, "17": 1584.00, "19": 2189.52, "20": 2492.64},
     "fiscale_pk": {
-      "GTS":     {"991.1": 19, "991.2": 15, "992": 15},
-      "Turbo":   {"991.1": 19, "991.2": 19, "992": 19},
-      "Turbo S": {"991.1": 19, "991.2": 19, "992": 19}
+      "GTS":     {"997.2": 19, "991.1": 19, "991.2": 15, "992": 15},
+      "Turbo":   {"997.1": 19, "997.2": 19, "991.1": 19, "991.2": 19, "992": 19},
+      "Turbo S": {"997.2": 19, "991.1": 19, "991.2": 19, "992": 19}
     },
     "opdeciem": 0.10,
     "groen_vanaf_bouwjaar": 2021,
@@ -34,9 +37,9 @@
   "nieuwprijs_uitleg": "Catalogusprijs Cabriolet bij lancering (Duitsland, incl. btw), indicatief. Basis voor de waardecurve, maal opties_factor (typische meerprijs aan opties).",
   "opties_factor": 1.2,
   "nieuwprijs": {
-    "GTS":     {"991.1": 130300, "991.2": 137000, "992": 155000},
-    "Turbo":   {"991.1": 174400, "991.2": 187700, "992": 194000},
-    "Turbo S": {"991.1": 208000, "991.2": 216000, "992": 226000}
+    "GTS":     {"997.2": 114000, "991.1": 130300, "991.2": 137000, "992": 155000},
+    "Turbo":   {"997.1": 149000, "997.2": 160000, "991.1": 174400, "991.2": 187700, "992": 194000},
+    "Turbo S": {"997.2": 185000, "991.1": 208000, "991.2": 216000, "992": 226000}
   },
 
   "score": {
@@ -44,6 +47,8 @@
     "deal_max": 30,
     "manueel": 12,
     "atmo_991_1": 6,
+    "atmo_uitleg": "atmo_991_1 geldt voor elke atmosferische GTS: 991.1 en 997.2 (3.8 zonder turbo).",
+    "mezger_997_1_turbo": 4,
     "belgie": 4,
     "porsche_approved": 6,
     "porsche_centre": 4,
@@ -62,12 +67,13 @@
     "maximum": 14000,
     "co2_standaard": {
       "GTS": {
+        "997.2": {"manueel": 250, "pdk": 240},
         "991.1": {"manueel": 233, "pdk": 223},
         "991.2": {"manueel": 228, "pdk": 212},
         "992":   {"manueel": 262, "pdk": 255}
       },
-      "Turbo":   {"991.1": 227, "991.2": 212, "992": 272},
-      "Turbo S": {"991.1": 231, "991.2": 216, "992": 278}
+      "Turbo":   {"997.1": 320, "997.2": 270, "991.1": 227, "991.2": 212, "992": 272},
+      "Turbo S": {"997.2": 272, "991.1": 231, "991.2": 216, "992": 278}
     }
   }
 }

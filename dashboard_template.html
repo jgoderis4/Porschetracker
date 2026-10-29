@@ -9,12 +9,12 @@
   :root {
     --bg: #f6f5f2; --card: #ffffff; --text: #1d1d1f; --muted: #6e6e73; --line: #e3e1dc;
     --accent: #b8860b; --good: #1f7a3f; --bad: #b3261e; --chip: #efede8;
-    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #8a5cd0; --s5: #c0397a;
   }
   @media (prefers-color-scheme: dark) {
     :root { --bg: #141414; --card: #1e1e1e; --text: #f2f2f2; --muted: #9a9a9f; --line: #2e2e2e;
             --accent: #e0b84a; --good: #5cc983; --bad: #ff7b72; --chip: #2a2a2a;
-            --s1: #3987e5; --s2: #d95926; --s3: #199e70; }
+            --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #a07ee6; --s5: #e05c98; }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
@@ -145,7 +145,7 @@
 
   <div class="bar">
     <label>Generatie
-      <select id="gen"><option value="">Alle</option><option>991.1</option><option>991.2</option><option>992</option></select>
+      <select id="gen"><option value="">Alle</option><option>997.1</option><option>997.2</option><option>991.1</option><option>991.2</option><option>992</option></select>
     </label>
     <label>Vanaf bouwjaar
       <select id="van"><option value="">Alle</option></select>
@@ -191,6 +191,10 @@
     <h3>Per generatie</h3>
     <table>
       <tr><th>Generatie</th><th>Bouwjaren</th><th>GTS</th><th>Turbo / Turbo S</th><th>Om te weten</th></tr>
+      <tr><td><b>997.1</b></td><td>2007–2009</td><td>–</td><td>3.6 biturbo "Mezger", 480 pk, manueel of Tiptronic</td>
+          <td>Mezger-motor (afgeleid van de racemotor): betrouwbaar en gewild, vooral met manuele bak. Moderne klassieker; zakt nauwelijks nog.</td></tr>
+      <tr><td><b>997.2</b></td><td>2010–2012</td><td>3.8 atmosferisch, 408 pk, manueel of PDK (GTS pas vanaf 2011)</td><td>3.8 biturbo, 500 / 530 pk, manueel (Turbo) of PDK</td>
+          <td>997 GTS is zeldzaam en het meest gezocht. Hydraulische besturing, klassiek formaat. Oude infotainment, hogere onderhoudskosten. BIV minimaal.</td></tr>
       <tr><td><b>991.1</b></td><td>2014–2016</td><td>3.8 atmosferisch, 430 pk, manueel of PDK</td><td>3.8 biturbo, 520 / 560 pk, alleen PDK</td>
           <td>Laatste GTS zonder turbo: scherpe respons, typische hoge toeren. Oudere infotainment (geen CarPlay). Laagste BIV.</td></tr>
       <tr><td><b>991.2</b></td><td>2017–2019</td><td>3.0 biturbo, 450 pk, manueel of PDK</td><td>3.8 biturbo, 540 / 580 pk, alleen PDK</td>
@@ -200,7 +204,8 @@
       <tr><td><b>992.2</b></td><td>2024–</td><td>3.6 T-Hybrid, 541 pk, alleen PDK</td><td>Turbo S T-Hybrid, 711 pk</td>
           <td>Hybride techniek, geen manuele bak meer. Ver boven budget.</td></tr>
     </table>
-    <p class="note">Voor waardebehoud doen het meest: een <b>manuele bak</b> (zeldzaam, gewild), de <b>991.1 GTS</b> (laatste atmosferische motor),
+    <p class="note">Voor waardebehoud doen het meest: een <b>manuele bak</b> (zeldzaam, gewild), een <b>atmosferische GTS</b> (997.2 en 991.1),
+      de <b>997.1 Turbo</b> (Mezger-motor),
       lage km, Porsche Approved en een volledige onderhoudshistoriek.</p>
     <h3>Per bouwjaar (BIV als je vandaag inschrijft)</h3>
     <table id="jaartabel"></table>
@@ -236,13 +241,14 @@
 
   <p class="note">
     Score (0–100) = prijs t.o.v. vergelijkbare auto's in deze lijst (bouwjaar, km, bak, generatie)
-    + bonussen voor manuele bak, 991.1, Belgische auto, Porsche Approved/Centre, lage km en lang te koop − straf voor hoge BIV.
+    + bonussen voor manuele bak, atmosferische GTS (997.2/991.1), 997.1 Turbo (Mezger), Belgische auto, Porsche Approved/Centre, lage km en lang te koop − straf voor hoge BIV.
     Buitenlandse auto's worden vergeleken mét geschatte importkosten (transport, keuring, COC, platen).
     <b>All-in</b> = vraagprijs + BIV + importkosten. Favorieten, verborgen auto's en notities worden alleen in deze browser bewaard.
     Een verborgen auto komt vanzelf terug zodra zijn prijs zakt.
     <b>Kost per jaar</b> = (afschrijving volgens de waardecurve + BIV + import + verkeersbelasting + onderhoud) gedeeld door het aantal jaar
     dat je de auto houdt (config.json: kost_jaren); zonder verzekering. <b>Bod</b>: plafond = laagste van vraagprijs en marktprijs,
     startbod = plafond min onderhandelingsruimte (meer als de auto lang te koop staat of al gezakt is, minder bij een Porsche Centre).
+    Een 997 heeft een ruimere km-grens en rekent met meer onderhoud per jaar (config.json: max_km_997, onderhoud_per_jaar_997).
     BIV is een <b>schatting</b> (Vlaanderen, privé, Euro 6); CO₂ uit de advertentie of een standaardwaarde per generatie.
     Controleer het exacte bedrag altijd in de
     <a href="https://belastingen.fenb.be/ui/public/simulaties/vkb" target="_blank">officiële simulator</a>.
@@ -382,14 +388,16 @@ const dmy = iso => iso.slice(5, 10).split("-").reverse().join("/");
 const LC = [1, .9, .8, .7, .6, .54, .48, .42, .36, .3, .24, .18, .12, .06, .01];
 function jaarTabel() {
   const b = DATA.config.biv, nu = new Date(), gtsCo2 = b.co2_standaard.GTS;
-  const gen = j => j <= 2016 ? "991.1" : j <= 2020 ? "991.2" : "992";
+  const gen = j => j <= 2009 ? "997.1" : j <= 2012 ? "997.2" : j <= 2016 ? "991.1" : j <= 2020 ? "991.2" : "992";
   const rows = [];
-  for (let j = 2014; j <= nu.getFullYear(); j++) {
+  for (let j = DATA.config.vanaf_bouwjaar; j <= nu.getFullYear(); j++) {
     const leeftijd = nu.getFullYear() - j - (nu.getMonth() < 5 ? 1 : 0);  // ~ inschrijving midden van het jaar
-    const lc = LC[leeftijd] ?? 0, co2 = gtsCo2[gen(j)].pdk;
+    const lc = LC[leeftijd] ?? 0, co2 = gtsCo2[gen(j)]?.pdk ?? b.co2_standaard.Turbo[gen(j)];  // 997.1: geen GTS
     const biv = lc ? Math.max(b.minimum, (Math.min(((co2 * b.f_benzine * b.q) / 246) ** 6 * 4500 + b.c_euro6, b.maximum)) * lc) : b.minimum;
     const n = DATA.autos.filter(c => c.jaar === j).length;
-    rows.push(`<tr><td><b>${j}</b></td><td>${gen(j) === "991.2" && j === 2020 ? "991.2 (laatste)" : gen(j)}</td>
+    const label = gen(j) === "991.2" && j === 2020 ? "991.2 (laatste)" : gen(j) === "997.1" ? "997.1 (alleen Turbo)"
+      : j === 2013 ? "991.1 (Turbo; GTS vanaf 2014)" : gen(j);
+    rows.push(`<tr><td><b>${j}</b></td><td>${label}</td>
       <td>${Math.round(lc * 100)}%</td><td>≈ ${fmt(biv)}</td><td>${n || "–"}</td></tr>`);
   }
   $("jaartabel").innerHTML = `<tr><th>Bouwjaar</th><th>Generatie</th><th>BIV-factor</th><th>BIV ≈</th><th>Nu op dashboard</th></tr>` + rows.join("");
@@ -492,7 +500,7 @@ function priceBlock(c) {
 }
 
 // Marktgrafiek: één lijn per generatie, kleur hangt vast aan de generatie (niet aan de volgorde)
-const GENS = [["991.1", "--s1"], ["991.2", "--s2"], ["992", "--s3"]];
+const GENS = [["997.1", "--s4"], ["997.2", "--s5"], ["991.1", "--s1"], ["991.2", "--s2"], ["992", "--s3"]];
 const kfmt = n => "€ " + Math.round(n / 1000) + "k";
 // De tracker bewaart één punt per dag; de grafiek toont per periode van 14 dagen de mediaan van die dagpunten
 const PERIODE_DAGEN = 14;
@@ -583,7 +591,7 @@ function waardeGrafiek() {
       <th>Over 5 jaar</th><th>Per jaar</th><th>Auto's in staal</th></tr>` + reeks.map(r => {
     const t = r.toekomst[r.toekomst.length - 1], perJaar = (1 - (t[2] / r.nu) ** (1 / 5)) * 100;
     return `<tr><td><b>${r.generatie}</b></td><td>${fmt(r.nieuwprijs)}</td><td>${fmt(r.nu)}</td><td>${r.behouden_pct}%</td>
-      <td style="white-space:nowrap">${fmt(t[2])}<br><span class="sub2">${fmt(t[1])} – ${fmt(t[3])}</span></td><td>−${perJaar.toFixed(1)}%</td><td>${r.aantal}</td></tr>`;
+      <td style="white-space:nowrap">${fmt(t[2])}<br><span class="sub2">${fmt(Math.min(t[1], t[3]))} – ${fmt(Math.max(t[1], t[3]))}</span></td><td>${perJaar >= 0 ? "−" : "+"}${Math.abs(perJaar).toFixed(1)}%</td><td>${r.aantal}</td></tr>`;
   }).join("");
   $("wnote").innerHTML = `Gebaseerd op ${reeks.reduce((s, r) => s + r.aantal, 0)} ${mdl}-advertenties op AutoScout24 (staal van ${dmy(wc.datum)}, zonder prijs- of km-filter).
     Nieuwprijs = Duitse catalogusprijs bij lancering × ${wc.opties_factor} voor opties (aan te passen in config.json).
@@ -725,7 +733,7 @@ zoekStatus();
 if (!DATA) {
   $("grid").innerHTML = '<div class="empty">Nog geen gegevens — draai eerst <code>python3 tracker.py</code>.</div>';
 } else {
-  $("sub").textContent = `Laatst bijgewerkt: ${DATA.bijgewerkt.replace("T", " om ")} · max ${fmt(DATA.config.max_prijs)} · max ${DATA.config.max_km.toLocaleString("nl-BE")} km · BIV max ${fmt(DATA.config.max_biv)}`;
+  $("sub").textContent = `Laatst bijgewerkt: ${DATA.bijgewerkt.replace("T", " om ")} · max ${fmt(DATA.config.max_prijs)} · max ${DATA.config.max_km.toLocaleString("nl-BE")} km (997: ${(DATA.config.max_km_997 || DATA.config.max_km).toLocaleString("nl-BE")}) · BIV max ${fmt(DATA.config.max_biv)}`;
   if (DATA.fouten.length) $("errs").innerHTML = `<div class="err">Problemen bij ophalen: ${esc(DATA.fouten.join("; "))}</div>`;
   const jaren = [...new Set(DATA.autos.map(c => c.jaar))].sort();
   $("van").innerHTML += jaren.map(j => `<option value="${j}">${j}</option>`).join("");

@@ -1,7 +1,7 @@
 # Porsche GTS/Turbo tracker
 
 Persoonlijke tool die 2x per dag zoekt naar tweedehands **Porsche 911 GTS en Turbo (S)**, als Cabriolet of Targa
-(991/992), en de beste kandidaten rangschikt.
+(997/991/992), en de beste kandidaten rangschikt.
 
 - **Bronnen:** AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealers (Lampe, AE Cars, DCT, Bavaria Motors, Autofest)
 - **Dashboard:** alle auto's met een score, de geschatte Vlaamse BIV, een all-in prijs (incl. importkosten), dagen te koop,

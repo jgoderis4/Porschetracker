@@ -83,7 +83,7 @@ def fetch(get):
             raise RuntimeError("DCT: wagenkaart zonder titel (structuur gewijzigd?)")
         titel = (_tekst(model.group(1)) + " " + _tekst(sub.group(1) if sub else "")).strip()
         # Voorfilter: enkel 911-familie met GTS of Turbo (fijnere filter zit in tracker.py)
-        if not re.search(r"911|991|992", titel) or not re.search(r"gts|turbo", titel.lower()):
+        if not re.search(r"911|99[127]", titel) or not re.search(r"gts|turbo", titel.lower()):
             continue
         if len(cars) >= MAX_DETAILS:
             break

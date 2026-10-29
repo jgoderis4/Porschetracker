@@ -1,6 +1,6 @@
 # Porsche GTS/Turbo tracker (porsche-tracker)
 
-Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS en Turbo (S), Cabriolet en Targa (991/992)
+Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS en Turbo (S), Cabriolet en Targa (997/991/992)
 op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Cars (WordPress-API), DCT, Bavaria Motors, Autofest), en schrijft een dashboard met score + geschatte Vlaamse BIV.
 
 - `tracker.py` – ophalen, filteren, BIV, score, dashboard, Mac-melding (alleen stdlib, Python 3.9)
@@ -40,6 +40,14 @@ Testen: `python3 tracker.py --test-melding` (Mac-venster + gsm).
 Manueel pushen: knop "📲 Push" op elke kaart in het dashboard stuurt de auto (+ optionele opmerking) naar het kanaal;
 het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerde dashboard (niet in het template/git).
 
+## 997 (toegevoegd okt. 2026, voor waardebehoud)
+- Generaties `997.1` (2007–09, alleen Turbo: Mezger 480 pk) en `997.2` (2010–12: GTS 408 pk vanaf 2011, Turbo 500, Turbo S 530).
+  Een 997 Targa GTS/Turbo bestaat niet. `generatie()` herkent ze aan titel, pk en bouwjaar; `model()` aanvaardt Turbo vanaf 470 pk t/m 2013.
+- Eigen km-grens `max_km_997` en `onderhoud_per_jaar_997`; score: `atmo_991_1` geldt ook voor de 997.2 GTS, plus `mezger_997_1_turbo`.
+- Marktprijs (`features()`): een 997 krijgt een eigen niveau én eigen leeftijdseffect. De waardecurve neemt de 997 gewoon mee
+  (nieuwprijs in config.json); die vlakt bij hoge leeftijd vanzelf af.
+- AutoScout24 wordt per periode (≤2013 / ≥2014) bevraagd; kmto = de ruimste grens, het echte km-filter gebeurt per generatie.
+
 ## Kost, bod, verkoopsnelheid, samenvatting, vergelijken
 - **Kost per jaar** (`totale_kost()`): afschrijving over `kost_jaren` volgens de waardecurve van het model
   (prijs × r(a+jaren)/r(a)) + BIV + import + verkeersbelasting + `onderhoud_per_jaar`, gedeeld door de jaren. Geen verzekering.
@@ -69,8 +77,8 @@ Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.
 - **Repo is openbaar**: nooit geheimen committen (ntfy-kanaal, sleutels); die staan in Application Support.
 
 ## Waardecurve en prognose
-- `marktstaal()` haalt 1x per dag alle GTS/Turbo cabrio's+targa's vanaf 2014 op AutoScout24 op, zonder prijs-/km-filter,
-  per periode (2014–16, 2017–20, 2021–24) wegens de limiet van 10 pagina's. 992.2 (541/711 pk) blijft eruit.
+- `marktstaal()` haalt 1x per dag alle GTS/Turbo cabrio's+targa's vanaf `vanaf_bouwjaar` op AutoScout24 op, zonder prijs-/km-filter,
+  per periode (2007–13, 2014–16, 2017–20, 2021–24) wegens de limiet van 10 pagina's. 992.2 (541/711 pk) blijft eruit.
 - `waardecurve()` past per model r(a) = f + (1-f)·e^(-k·a) toe (restwaarde t.o.v. `nieuwprijs` × `opties_factor`),
   ijkt per generatie op de mediaan van vandaag en geeft verloop sinds nieuw + prognose 5 jaar (band: k×1.4/f×0.9 tot k×0.6/f×1.1).
   Het verloop is afgeleid uit prijzen per leeftijd vandaag (cross-sectioneel), niet uit echte historische prijzen.

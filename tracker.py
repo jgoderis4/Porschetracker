@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Porsche GTS/Turbo tracker: 911 GTS / Turbo / Turbo S (Cabriolet + Targa).
+"""Porsche GTS/Turbo tracker: 911 GTS / Turbo / Turbo S (Cabriolet + Targa), 997 t/m 992.
 
 Haalt advertenties op van AutoScout24 (BE/NL/DE/LU), Belgische dealersites (bronnen/)
 en 2dehands.be, voegt dezelfde auto op meerdere sites samen, berekent een
@@ -35,7 +35,7 @@ NTFY_TOPIC_FILE = DATA_DIR / "ntfy_topic.txt"
 # Slot zodat een geplande en een manuele run (knop in het dashboard) nooit tegelijk lopen.
 SLOT_FILE = DATA_DIR / "tracker.lock"
 
-ECHTE_GTS = re.compile(r"carrera\s*(4\s*)?gts|targa\s*(4\s*)?gts|\b4\s*gts|\bgts\s*cabr|99[12](\.\d)?\s*gts"
+ECHTE_GTS = re.compile(r"carrera\s*(4\s*)?gts|targa\s*(4\s*)?gts|\b4\s*gts|\bgts\s*cabr|99[127](\.\d)?\s*gts"
                        r"|\d\.\d\s*gts|^gts")
 OPEN_DAK = re.compile(r"cabr|targa|convertible|verdeck|soft\s*-?top|stoffdach|stoffen dak")
 # sommige sites laten een verkochte auto nog even staan met "VERKOCHT" in de titel
@@ -61,13 +61,17 @@ def to_int(s):
 
 def fetch_autoscout():
     # Targa's staan vaak als "Cabriolet" ingegeven, soms niet: daarom een extra zoekopdracht.
+    # Per periode: AutoScout24 toont max. 10 pagina's per zoekopdracht. Targa 4 GTS bestaat pas vanaf de 991.
     cars, ids = [], set()
     for zoek in ({"mmmv": "57||70|GTS", "body": "2"}, {"mmmv": "57||70|Targa 4 GTS"},
                  {"mmmv": "57||70|Turbo", "body": "2"}):
-        for c in fetch_autoscout_zoek(zoek):
-            if c["id"] not in ids:
-                ids.add(c["id"])
-                cars.append(c)
+        for van, tot in ((CONFIG["vanaf_bouwjaar"], 2013), (2014, None)):
+            if "Targa" in zoek["mmmv"] and tot:
+                continue
+            for c in fetch_autoscout_zoek({**zoek, "fregfrom": van, "fregto": tot}):
+                if c["id"] not in ids:
+                    ids.add(c["id"])
+                    cars.append(c)
     return cars
 
 
@@ -75,7 +79,7 @@ def fetch_autoscout_zoek(zoek):
     params = {
         "atype": "C",
         "cy": ",".join(CONFIG["landen_autoscout"]),
-        "kmto": CONFIG["max_km"], "priceto": CONFIG["max_prijs"],
+        "kmto": max(CONFIG["max_km"], CONFIG["max_km_997"]), "priceto": CONFIG["max_prijs"],
         "fregfrom": CONFIG["vanaf_bouwjaar"], "ustate": "N,U",
         "sort": "age", "desc": "1",
         **zoek,  # zoek kan een standaard overschrijven; None = parameter weglaten
@@ -131,7 +135,7 @@ def fetch_2dehands():
         a = {x["key"]: x.get("value") for x in l.get("attributes", [])}
         title = l.get("title", "")
         txt = (title + " " + l.get("description", "")).lower()
-        if not re.search(r"gts|turbo", title.lower()) or not re.search(r"911|991|992", title):
+        if not re.search(r"gts|turbo", title.lower()) or not re.search(r"911|99[127]", title):
             continue
         if a.get("body") != "Cabriolet" and "cabrio" not in txt and "targa" not in txt:
             continue
@@ -192,10 +196,12 @@ def zelfde_auto(a, b):
 
 def model(car):
     """GTS, Turbo of Turbo S — of None. Veel Carrera's heten '3.0 Turbo' (de motor),
-    een echte 911 Turbo herken je aan het vermogen: minstens 520 pk (Carrera max. 480)."""
+    een echte 911 Turbo herken je aan het vermogen: minstens 500 pk (Carrera max. 480);
+    bij de 997 (t/m 2013) volstaat 470 pk: de 997.1 Turbo heeft 480 pk, een 997 Carrera max. 408."""
     t, pk = car["titel"].lower(), car["pk"] or 0
-    if "turbo" in t and pk >= 500 and not ECHTE_GTS.search(t):
-        s = re.search(r"turbo\s*s\b", t) or pk in (560, 650) or (pk == 580 and (car["jaar"] or 0) < 2020)
+    turbo_pk = pk >= 500 or (pk >= 470 and 0 < (car["jaar"] or 0) <= 2013)
+    if "turbo" in t and turbo_pk and not ECHTE_GTS.search(t):
+        s = re.search(r"turbo\s*s\b", t) or pk in (530, 560, 650) or (pk == 580 and (car["jaar"] or 0) < 2020)
         return "Turbo S" if s else "Turbo"
     if ECHTE_GTS.search(t):
         return "GTS"
@@ -204,6 +210,13 @@ def model(car):
 
 def generatie(car):
     t, pk, y = car["titel"].lower(), car["pk"] or 0, car["jaar"] or 0
+    # 997 (t/m 2012): GTS 408 pk (alleen 997.2), Turbo 480 (997.1) / 500 (997.2), Turbo S 530 (997.2)
+    if "997" in t or 0 < y <= 2012 or (car["model"] != "GTS" and pk in (480, 500, 530)):
+        if car["model"] != "Turbo" or re.search(r"997[.\s/]*(2|ii)\b", t) or pk == 500:
+            return "997.2"
+        if re.search(r"997[.\s/]*(1|i)\b", t) or pk == 480:
+            return "997.1"
+        return "997.1" if y <= 2009 else "997.2"
     if "992" in t:
         return "992"
     if "991.2" in t or "991/2" in t:
@@ -265,9 +278,20 @@ def solve(a, y):
     return x
 
 
+def is_997(c):
+    return c["generatie"].startswith("997")
+
+
+def max_km(c):
+    return CONFIG["max_km_997"] if is_997(c) else CONFIG["max_km"]
+
+
 def features(c):
+    # een 997 heeft een eigen niveau én een eigen leeftijdseffect: die waarde zakt nauwelijks nog
+    oud = 1 if is_997(c) else 0
     return [1, c["leeftijd_jr"], c["km"] / 10000, 1 if c["manueel"] else 0, 1 if c["generatie"] == "992" else 0,
-            1 if c["type"] == "Targa" else 0, 1 if c["model"] == "Turbo" else 0, 1 if c["model"] == "Turbo S" else 0]
+            1 if c["type"] == "Targa" else 0, 1 if c["model"] == "Turbo" else 0, 1 if c["model"] == "Turbo S" else 0,
+            oud, oud * c["leeftijd_jr"]]
 
 
 def import_kosten(car):
@@ -296,8 +320,10 @@ def score(cars):
         txt = (c["titel"] + " " + c.get("_tekst", "")).lower()
         if c["manueel"]:
             pts += s["manueel"]; why.append("manuele bak")
-        if c["generatie"] == "991.1" and c["model"] == "GTS":
-            pts += s["atmo_991_1"]; why.append("991.1: laatste atmosferische 3.8")
+        if c["model"] == "GTS" and c["generatie"] in ("991.1", "997.2"):
+            pts += s["atmo_991_1"]; why.append(f'{c["generatie"]}: atmosferische 3.8 (zonder turbo)')
+        if c["model"] == "Turbo" and c["generatie"] == "997.1":
+            pts += s.get("mezger_997_1_turbo", 0); why.append("997.1 Turbo: Mezger-motor (gewild, betrouwbaar)")
         if c["land"] == "BE":
             pts += s["belgie"]; why.append("Belgische auto")
         if "approved" in txt:
@@ -308,7 +334,7 @@ def score(cars):
             pts += s["chrono_of_uitlaat_vermeld"]
         if c["dagen_online"] >= s["lang_online_dagen"]:
             pts += s["lang_online"]; why.append(f'{c["dagen_online"]} dagen te koop: ruimte om te onderhandelen')
-        pts += max(0, (CONFIG["max_km"] - c["km"]) / CONFIG["max_km"]) * s["lage_km_max"]
+        pts += max(0, (max_km(c) - c["km"]) / max_km(c)) * s["lage_km_max"]
         pts -= min(1, c["biv"] / CONFIG["max_biv"]) * s["biv_straf_max"]
         c["score"] = round(max(0, min(100, pts)))
         c["waarom"] = why
@@ -423,7 +449,7 @@ def bron_bewaking(aantallen, historiek):
 
 
 def marktstaal(oud, vandaag):
-    """Eén keer per dag: alle GTS/Turbo cabrio's en targa's vanaf 2014 op AutoScout24, zónder prijs- of
+    """Eén keer per dag: alle GTS/Turbo cabrio's en targa's vanaf vanaf_bouwjaar (2007) op AutoScout24, zónder prijs- of
     km-grens. Zo is de waardecurve niet scheefgetrokken door de eigen zoekfilters."""
     if oud and oud.get("datum") == vandaag:
         return oud
@@ -431,7 +457,9 @@ def marktstaal(oud, vandaag):
     # per periode zoeken: AutoScout24 toont max. 10 pagina's, anders verdringen de 992's de oudere 991's
     for zoek in ({"mmmv": "57||70|GTS", "body": "2"}, {"mmmv": "57||70|Targa 4 GTS"},
                  {"mmmv": "57||70|Turbo", "body": "2"}):
-        for van, tot in ((2014, 2016), (2017, 2020), (2021, 2024)):
+        for van, tot in ((CONFIG["vanaf_bouwjaar"], 2013), (2014, 2016), (2017, 2020), (2021, 2024)):
+            if "Targa" in zoek["mmmv"] and tot <= 2013:
+                continue
             for c in fetch_autoscout_zoek({**zoek, "priceto": None, "kmto": None, "fregfrom": van, "fregto": tot}):
                 if c["id"] in ids or not c["prijs"] or not c["jaar"] or c["pk"] in (541, 711):
                     continue  # 992.2 (T-Hybrid) is een duurdere generatie: niet mengen met de 992.1
@@ -519,7 +547,8 @@ def totale_kost(c, fits):
     a = max(0, vandaag.year - c["jaar"] + (vandaag.month - (c["maand"] or 6)) / 12)
     rest = round(c["prijs"] * r(a + jaren) / r(a), -2)
     delen = {"afschrijving": c["prijs"] - rest, "biv_import": c["biv"] + c["import_kosten"],
-             "verkeersbelasting": verkeersbelasting(c) * jaren, "onderhoud": CONFIG["onderhoud_per_jaar"] * jaren}
+             "verkeersbelasting": verkeersbelasting(c) * jaren,
+             "onderhoud": CONFIG["onderhoud_per_jaar_997" if is_997(c) else "onderhoud_per_jaar"] * jaren}
     totaal = sum(delen.values())
     return dict(delen, jaren=jaren, restwaarde=rest, totaal=totaal, per_jaar=round(totaal / jaren, -2))
 
@@ -627,12 +656,15 @@ def main():
     uniek = []
     for c in cars:
         t = c["titel"].lower()
-        if not c["prijs"] or c["prijs"] > CONFIG["max_prijs"] or c["km"] > CONFIG["max_km"]:
+        if not c["prijs"] or c["prijs"] > CONFIG["max_prijs"]:
             continue
         if (c["jaar"] or 0) < CONFIG["vanaf_bouwjaar"] or "boxster" in t or VERKOCHT.search(t):
             continue
         c["model"] = model(c)
         if not c["model"]:  # bv. "Carrera 4S ... GTS Carbon-pakket" of "Carrera 3.0 Turbo"
+            continue
+        c["generatie"] = generatie(c)
+        if c["km"] > max_km(c):  # 997 heeft een ruimere km-grens
             continue
         if c["bron"] not in ("AutoScout24", "2dehands") and not OPEN_DAK.search((t + " " + c.get("_tekst", "")).lower()):
             continue  # dealersites: geen carrosserie-menu, dus cabrio/targa moet in de tekst staan
@@ -645,7 +677,6 @@ def main():
         if c["bron"] == "AutoScout24" and not echt_open_dak(c, typecheck):
             continue
         c["te_koop_op"] = [{"bron": c["bron"], "url": c["url"], "prijs": c["prijs"]}]
-        c["generatie"] = generatie(c)
         c["type"] = "Targa" if "targa" in t or "targa" in c.get("_tekst", "") else "Cabrio"
         c["biv"], c["co2_gebruikt"], c["leeftijd_jr"] = biv(c)
         uniek.append(c)

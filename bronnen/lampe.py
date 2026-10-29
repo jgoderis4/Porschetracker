@@ -45,7 +45,7 @@ def fetch(get):
             raise RuntimeError("Lampe: wagenkaart zonder link of titel (structuur gewijzigd?)")
         titel = _tekst(titel.group(1))
         # Voorfilter: enkel 911-familie met GTS of Turbo (fijnere filter zit in tracker.py)
-        if not re.search(r"911|991|992", titel) or not re.search(r"gts|turbo", titel.lower()):
+        if not re.search(r"911|99[127]", titel) or not re.search(r"gts|turbo", titel.lower()):
             continue
         maand, _, jaar = _spec(kaart, "Inschrijving").partition("/")
         foto = re.search(r'<img class="car" src="([^"]+)"', kaart)
