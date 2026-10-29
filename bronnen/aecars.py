@@ -1,16 +1,16 @@
-"""AE Cars (Kuurne) — eigen PHP-site, geen API: alles staat als HTML op /wagens/."""
+"""AE Cars (Ardooie, voorheen Kuurne) — WordPress-site (sinds okt. 2026).
+
+De lijst komt uit de WordPress-API (/wp-json/wp/v2/cars, alleen titel + link);
+prijs, km, pk enz. staan als "label / waarde"-regels op de detailpagina.
+"""
 import html
+import json
 import re
 import time
 
 NAAM = "AE Cars"
-BASIS = "https://www.aecars.be"
-
-# één tegel in het overzicht: link, foto, titel, "pk / km / jaar", prijs
-TEGEL = re.compile(
-    r"<a href='(https://www\.aecars\.be/wagens/detail/([^']+))'[^>]*>.*?"
-    r"ximgs='([^']*)'.*?acc_caption_inner'>\s*(.*?)<br>\s*(.*?)\s*"
-    r"<span class='xb acc_price'>(.*?)</span>", re.S)
+BASIS = "https://aecars.be"
+PORSCHE = 9  # id van het merk "porsche" in /wp-json/wp/v2/merk
 
 
 def _int(s):
@@ -18,65 +18,65 @@ def _int(s):
     return int(d) if d else None
 
 
-def _veld(page, label):
-    """Waarde uit de spec-tabellen op de detailpagina (bv. 'transmissie')."""
-    m = re.search(r"<td[^>]*>\s*" + re.escape(label) + r"\s*</td>\s*<td[^>]*>\s*(.*?)\s*</td>", page, re.S | re.I)
-    return html.unescape(m.group(1)).strip() if m else ""
+def _regels(page):
+    """Detailpagina als lijst tekstregels (Elementor zet elk label en elke waarde in een eigen blok)."""
+    t = re.sub(r"<script.*?</script>|<style.*?</style>|<svg.*?</svg>", "", page, flags=re.S)
+    return [r.strip() for r in html.unescape(re.sub(r"<[^>]+>", "\n", t)).split("\n") if r.strip()]
 
 
-def _tekst(fragment):
-    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", fragment))).strip()
+def _veld(regels, label):
+    """Waarde op de regel na het label (bv. 'km-stand' -> '49.812'); de eerste na de prijs telt."""
+    for i, r in enumerate(regels[:-1]):
+        if r.lower() == label.lower():
+            return regels[i + 1]
+    return ""
 
 
 def fetch(get):
-    overzicht = get(BASIS + "/wagens/")
-    tegels = TEGEL.findall(overzicht)
-    if not tegels:
+    lijst = json.loads(get(f"{BASIS}/wp-json/wp/v2/cars?merk={PORSCHE}&per_page=100&_fields=slug,link,title"))
+    if not lijst:
         raise RuntimeError("AE Cars: geen wagens gevonden, paginastructuur gewijzigd?")
     cars = []
-    for url, slug, foto, titel, specs, prijs in tegels:
-        titel = _tekst(titel)
-        tl = (titel + " " + slug).lower()
+    for x in lijst:
+        titel = re.sub(r"\s+", " ", html.unescape(x["title"]["rendered"])).strip()
+        tl = (titel + " " + x["slug"]).lower()
         # enkel 911-familie met gts/turbo; de tracker filtert verder
-        if "porsche" not in tl or not re.search(r"911|991|992", tl) or not re.search(r"gts|turbo", tl):
+        if not re.search(r"911|991|992", tl) or not re.search(r"gts|turbo", tl):
             continue
-        m = re.search(r"([\d.]+)\s*pk", specs)
-        pk = _int(m.group(1)) if m else None
-        m = re.search(r"([\d.]+)\s*km", specs)
-        km = _int(m.group(1)) if m else None
-        m = re.search(r"(\d{4})\s*$", specs)
-        jaar = int(m.group(1)) if m else None
         if len(cars) >= 29:  # beleefd blijven: max ~30 verzoeken per run
             break
         time.sleep(1)
-        page = get(url)
-        if "c_d_table" not in page:
-            raise RuntimeError("AE Cars: detailpagina onherkenbaar: " + url)
-        inschr = re.search(r"(\d{1,2})/(\d{4})", _veld(page, "1ste inschrijving"))
-        co2 = re.search(r'uitstoot</div>\s*<div class="c_d_head">\s*<span[^>]*>\s*(\d+)', page)
-        if not pk:  # val terug op vermogen in pk of kW op de detailpagina
-            m = re.search(r'vermogen</div>\s*<div class="c_d_head">\s*<span[^>]*>\s*(\d+)\s*</span>\s*(pk|kw)', page, re.I)
-            if m:
-                pk = int(m.group(1)) if m.group(2).lower() == "pk" else round(int(m.group(1)) * 1.36)
-        omschr = re.search(r'<div class="xb text_content">(.*?)</div>', page, re.S)
-        transmissie = _veld(page, "transmissie").lower()
+        page = get(x["link"])
+        regels = _regels(page)
+        # alles vóór de prijs is menu/omschrijving; specs staan erna
+        p = next((i for i, r in enumerate(regels) if re.fullmatch(r"€\s*[\d.]+,?-?|prijs op aanvraag", r, re.I)), None)
+        if p is None or "km-stand" not in regels:
+            raise RuntimeError("AE Cars: detailpagina onherkenbaar: " + x["link"])
+        specs = regels[p:]
+        inschr = re.search(r"(\d{1,2})/(\d{4})$", _veld(specs, "1ste inschrijving"))
+        jaar = _int(_veld(specs, "bouwjaar"))
+        transmissie = _veld(specs, "Transmissie").lower()
+        co2 = _int(_veld(specs, "CO₂"))
+        fotos = [u for u in re.findall(r"https://aecars\.be/wp-content/uploads/[^\"' ,]+?\.(?:jpe?g|webp|png)", page)
+                 if "logo" not in u.lower()]
         cars.append({
-            "id": "aecars-" + slug.strip("-"),
+            "id": "aecars-" + x["slug"],
             "bron": NAAM,
-            "titel": titel,
-            "prijs": _int(prijs),  # geen cijfers = prijs op aanvraag → None
-            "km": km or 0,
+            "titel": titel.replace(" – ", " "),
+            "prijs": _int(regels[p]),  # geen cijfers = prijs op aanvraag → None
+            "km": _int(_veld(specs, "km-stand")) or 0,
             "jaar": int(inschr.group(2)) if inschr else jaar,
             "maand": int(inschr.group(1)) if inschr and 1 <= int(inschr.group(1)) <= 12 else 6,
-            "pk": pk,
-            "manueel": "manu" in transmissie or (not transmissie and "manueel" in tl),
-            "co2": int(co2.group(1)) if co2 and int(co2.group(1)) else None,
+            "pk": _int(_veld(specs, "vermogen")),
+            "manueel": "manu" in transmissie,
+            "co2": co2 if co2 and 80 < co2 < 600 else None,  # leeg veld → volgende regel (bv. bouwjaar)
             "land": "BE",
-            "plaats": "Kuurne",
+            "plaats": "Ardooie",
             "verkoper": NAAM,
             "dealer": True,
-            "foto": foto.split(",")[0].strip() or None,
-            "url": url,
-            "_tekst": " ".join([titel, slug.replace("-", " "), _tekst(omschr.group(1)) if omschr else ""]).lower(),
+            "foto": fotos[0] if fotos else None,
+            "url": x["link"],
+            # omschrijving (net vóór de prijs) + specs en optielijst (erna)
+            "_tekst": " ".join([titel] + regels[max(0, p - 3):p + 80]).lower(),
         })
     return cars

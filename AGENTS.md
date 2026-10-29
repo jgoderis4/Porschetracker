@@ -1,7 +1,7 @@
 # Porsche GTS/Turbo tracker (porsche-tracker)
 
 Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS en Turbo (S), Cabriolet en Targa (991/992)
-op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Cars, DCT, Bavaria Motors, Autofest), en schrijft een dashboard met score + geschatte Vlaamse BIV.
+op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Cars (WordPress-API), DCT, Bavaria Motors, Autofest), en schrijft een dashboard met score + geschatte Vlaamse BIV.
 
 - `tracker.py` – ophalen, filteren, BIV, score, dashboard, Mac-melding (alleen stdlib, Python 3.9)
 - `bronnen/<dealer>.py` – één module per dealersite: `NAAM` + `fetch(get)` → lijst auto-dicts (zelfde velden als in tracker.py). Nieuwe dealer = nieuw bestand, wordt automatisch opgepikt. Alleen Belgische dealers.
