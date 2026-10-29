@@ -345,6 +345,18 @@ def score(cars):
 _slot = None
 
 
+def herbouw_dashboard():
+    """Nieuw template, bestaande gegevens: zo is een wijziging aan de pagina meteen zichtbaar
+    na ./install.sh, zonder te moeten wachten op de volgende zoekrun."""
+    if not DASHBOARD.exists():
+        return
+    regel = next((r for r in DASHBOARD.read_text().split("\n") if r.startswith("const DATA = ")), None)
+    if regel:
+        data = regel[len("const DATA = "):].rstrip().rstrip(";")
+        json.loads(data)  # kapotte gegevens? dan liever niets overschrijven
+        DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", data))
+
+
 def slot_nemen():
     """True als deze run het slot heeft; False als er al een run bezig is."""
     global _slot
@@ -804,6 +816,8 @@ if __name__ == "__main__":
              url="https://ntfy.sh/" + ntfy_topic())
         melding("Testmelding: zo ziet een melding eruit.\n\n"
                 "• GTS Cabrio 991.1 2015, 34.859 km, €105.800 – score 80")
+    elif "--herbouw-dashboard" in sys.argv:  # door install.sh
+        herbouw_dashboard()
     elif not slot_nemen():
         print(f"{datetime.now().isoformat(timespec='minutes')}: er loopt al een run, deze wordt overgeslagen")
     elif "--gepland" in sys.argv:  # door launchd, elke 15 min

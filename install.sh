@@ -65,6 +65,8 @@ cat > "$KPLIST" <<EOF
 </dict>
 </plist>
 EOF
+# dashboard meteen met het nieuwe template tonen (gegevens van de laatste run)
+/usr/bin/python3 "$APP/tracker.py" --herbouw-dashboard || echo "Let op: dashboard niet herbouwd, volgt bij de volgende run."
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 launchctl bootstrap "gui/$(id -u)" "$KPLIST"
 echo "Geïnstalleerd: draait dagelijks om 08:00 en 18:00 (gemist = ingehaald, check elke 15 min), knop 'Nu zoeken' actief. Dashboard: $DIR/dashboard.html"

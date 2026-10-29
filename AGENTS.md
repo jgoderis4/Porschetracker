@@ -13,6 +13,7 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
   Zo wordt een run ingehaald als de Mac sliep of net wakker werd zonder wifi. Alle bronnen mislukt = geen foutmelding, nieuwe poging.
 - `install.sh` – kopieert naar `~/Library/Application Support/porsche-tracker` en plant de launchd-taak
   (macOS laat geplande taken niet in ~/Documents). **Na elke wijziging opnieuw `./install.sh` draaien.**
+  install.sh herbouwt ook meteen het dashboard met het nieuwe template en de gegevens van de laatste run (`--herbouw-dashboard`).
 - **Bronbewaking** (`bron_bewaking()`): aantal advertenties per bron wordt bijgehouden in state.json; valt een grote bron
   (mediaan ≥ 3) terug onder 40% van normaal, dan komt er een waarschuwing (dashboard + melding). Kleine dealers geven zelf een fout.
 - **All-in prijs** = vraagprijs + BIV + `import_kosten` (per land, config.json). Marktprijs en korting rekenen met vraagprijs + import.
