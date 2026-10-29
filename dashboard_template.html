@@ -26,6 +26,12 @@
   .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 20px 0 16px;
          padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
   .bar label { display: flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
+  .gens { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 14px; }
+  .gens span { margin-right: 2px; }
+  .gens button { font: inherit; font-size: 13px; padding: 2px 9px; border-radius: 999px; cursor: pointer;
+                 border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  .gens button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .gens button small { opacity: .7; }
   .bar select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line);
                 background: var(--card); color: var(--text); }
   .count { margin-left: auto; color: var(--muted); font-size: 13px; }
@@ -144,9 +150,9 @@
   <div id="weg"></div>
 
   <div class="bar">
-    <label>Generatie
-      <select id="gen"><option value="">Alle</option><option>997.1</option><option>997.2</option><option>991.1</option><option>991.2</option><option>992</option></select>
-    </label>
+    <div class="gens" id="gen" title="Klik één of meer generaties aan; niets aangeklikt = alle">
+      <span>Generatie</span><button type="button" data-g="997.1" aria-pressed="false">997.1</button><button type="button" data-g="997.2" aria-pressed="false">997.2</button><button type="button" data-g="991.1" aria-pressed="false">991.1</button><button type="button" data-g="991.2" aria-pressed="false">991.2</button><button type="button" data-g="992" aria-pressed="false">992</button>
+    </div>
     <label>Vanaf bouwjaar
       <select id="van"><option value="">Alle</option></select>
     </label>
@@ -261,10 +267,17 @@ const fmt = n => "€ " + Math.round(n).toLocaleString("nl-BE");
 const $ = id => document.getElementById(id);
 const PREF_KEY = "porsche-filters";
 
+// Generatiefilter: meerdere tegelijk aan te klikken; leeg = alle generaties
+const GEN_SEL = new Set();
+function genKnoppen() {
+  for (const b of $("gen").querySelectorAll("button")) b.setAttribute("aria-pressed", GEN_SEL.has(b.dataset.g));
+}
 function loadPrefs() {
   try { const p = JSON.parse(localStorage.getItem(PREF_KEY) || "{}");
         for (const k of CHECKS) if (k in p) $(k).checked = p[k];
-        if (p.gen) $("gen").value = p.gen;
+        // vroeger één generatie (tekst), nu een lijst
+        for (const g of [].concat(p.gen || [])) if (g) GEN_SEL.add(g);
+        genKnoppen();
         if (p.sort) $("sort").value = p.sort;
         if (p.typ) $("typ").value = p.typ;
         if (p.mdl) $("mdl").value = p.mdl;
@@ -272,7 +285,7 @@ function loadPrefs() {
         if (p.maxp) $("maxp").value = p.maxp; } catch (e) {}
 }
 function savePrefs() {
-  const p = {gen: $("gen").value, sort: $("sort").value, typ: $("typ").value, mdl: $("mdl").value,
+  const p = {gen: [...GEN_SEL], sort: $("sort").value, typ: $("typ").value, mdl: $("mdl").value,
              van: $("van").value, maxp: $("maxp").value};
   for (const k of CHECKS) p[k] = $(k).checked;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) {}
@@ -651,7 +664,7 @@ function render() {
   savePrefs();
   const max = DATA.config.max_biv, hi = DATA.config.melding_vanaf_score;
   const list = DATA.autos.filter(c =>
-    (!$("gen").value || c.generatie === $("gen").value) &&
+    (!GEN_SEL.size || GEN_SEL.has(c.generatie)) &&
     (!$("typ").value || (c.type || "Cabrio") === $("typ").value) &&
     (!$("mdl").value || (c.model || "GTS") === $("mdl").value) &&
     (!$("van").value || c.jaar >= +$("van").value) &&
@@ -780,7 +793,16 @@ if (!DATA) {
   $("mmodel").addEventListener("change", () => { waardeGrafiek(); marktGrafiek(); });
   waardeGrafiek();
   marktGrafiek();
-  ["gen","van","maxp","mdl","typ","sort",...CHECKS].forEach(id => $(id).addEventListener("change", render));
+  $("gen").addEventListener("click", e => {
+    const b = e.target.closest("button[data-g]");
+    if (!b) return;
+    GEN_SEL.has(b.dataset.g) ? GEN_SEL.delete(b.dataset.g) : GEN_SEL.add(b.dataset.g);
+    genKnoppen();
+    render();
+  });
+  for (const b of $("gen").querySelectorAll("button"))  // aantal auto's per generatie
+    b.innerHTML = `${b.dataset.g} <small>${DATA.autos.filter(c => c.generatie === b.dataset.g).length}</small>`;
+  ["van","maxp","mdl","typ","sort",...CHECKS].forEach(id => $(id).addEventListener("change", render));
   render();
 }
 </script>
