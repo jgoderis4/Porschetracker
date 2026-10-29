@@ -8,6 +8,9 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
 - Dubbels (zelfde auto op meerdere sites, ook 2x op AutoScout24) worden samengevoegd via `zelfde_auto()`: één kaart, laagste prijs, alle sites in `te_koop_op`.
 - `config.json` – criteria, scoregewichten, BIV-parameters (q/c jaarlijks nakijken, indexatie 1 juli/1 jan)
 - `dashboard_template.html` – dashboard; `/*__DATA__*/null` wordt vervangen door de data
+- **Planning**: launchd start `tracker.py --gepland` elke 15 min; `run_nodig()` draait alleen als het laatste vaste moment
+  (08:00/18:00, `RUN_UREN`) nog niet gelukt is (`laatste_geslaagde_run` in state.json) en `internet()` werkt.
+  Zo wordt een run ingehaald als de Mac sliep of net wakker werd zonder wifi. Alle bronnen mislukt = geen foutmelding, nieuwe poging.
 - `install.sh` – kopieert naar `~/Library/Application Support/porsche-tracker` en plant de launchd-taak
   (macOS laat geplande taken niet in ~/Documents). **Na elke wijziging opnieuw `./install.sh` draaien.**
 - **Bronbewaking** (`bron_bewaking()`): aantal advertenties per bron wordt bijgehouden in state.json; valt een grote bron

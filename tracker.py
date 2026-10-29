@@ -13,6 +13,7 @@ import json
 import math
 import re
 import secrets
+import socket
 import subprocess
 import sys
 import time
@@ -549,6 +550,29 @@ def markt_punt(cars, markt, vandaag):
     return markt + [{"datum": vandaag, "segmenten": segmenten}]
 
 
+RUN_UREN = (8, 18)  # vaste momenten; launchd kijkt elke 15 min of er een moment gemist is (zie install.sh)
+
+
+def run_nodig(state, nu):
+    """Is het laatste vaste moment (08:00 of 18:00) al gedaan? Zo niet, dan inhalen."""
+    momenten = [nu.replace(hour=u, minute=0, second=0, microsecond=0) for u in RUN_UREN]
+    voorbij = [m for m in momenten if m <= nu] or [momenten[-1] - timedelta(days=1)]
+    return (state.get("laatste_geslaagde_run") or "") < max(voorbij).isoformat(timespec="minutes")
+
+
+def internet(pogingen=6, wacht=20):
+    """Net wakker? Wifi is er vaak pas na een halve minuut, en bij een kort 'onderhoudsontwaken'
+    van de Mac helemaal niet. Probeer ±2 minuten; anders niet draaien (volgende poging over 15 min)."""
+    for i in range(pogingen):
+        try:
+            socket.create_connection(("www.autoscout24.be", 443), timeout=5).close()
+            return True
+        except OSError:
+            if i < pogingen - 1:
+                time.sleep(wacht)
+    return False
+
+
 def main():
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {"auto": {}}
     typecheck = state.get("typecheck", {})
@@ -672,6 +696,8 @@ def main():
                        and state.get("laatste_samenvatting") != now[:10]) or "--samenvatting" in sys.argv
     state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
              "marktstaal": staal, "verkocht": verkocht, "gestart": gestart, "verkoop_historiek": verkoop_historiek[-1000:],
+             # minstens één bron gelukt: dit vaste moment is gedaan (anders volgt een nieuwe poging)
+             "laatste_geslaagde_run": now if aantallen else state.get("laatste_geslaagde_run"),
              "laatste_samenvatting": now[:10] if samenvatting_nu and "--geen-melding" not in sys.argv
              else state.get("laatste_samenvatting"),
              "auto": {c["id"]: {"eerst_gezien": c["eerst_gezien"], "prijshistoriek": c["prijshistoriek"],
@@ -702,7 +728,7 @@ def main():
         if len(nieuw_top) > 5:
             push("Porsche GTS/Turbo tracker", f"… en nog {len(nieuw_top) - 5} andere: zie dashboard")
         melding(f"{len(nieuw_top)} nieuwe interessante auto('s) of prijsdaling:\n\n{regels}{meer}")
-    elif errors:
+    elif errors and aantallen:  # alles mislukt = geen internet: geen foutmelding, er volgt een nieuwe poging
         push("Porsche GTS/Turbo tracker: fout bij ophalen", "; ".join(errors)[:300], prioriteit=2)
         melding("Fout bij ophalen: " + "; ".join(errors)[:200], knop_dashboard=False)
 
@@ -714,5 +740,12 @@ if __name__ == "__main__":
              url="https://ntfy.sh/" + ntfy_topic())
         melding("Testmelding: zo ziet een melding eruit.\n\n"
                 "• GTS Cabrio 991.1 2015, 34.859 km, €105.800 – score 80")
+    elif "--gepland" in sys.argv:  # door launchd, elke 15 min
+        state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
+        if run_nodig(state, datetime.now()):
+            if internet():
+                main()
+            else:
+                print(f"{datetime.now().isoformat(timespec='minutes')}: geen internet, nieuwe poging over 15 min")
     else:
         main()

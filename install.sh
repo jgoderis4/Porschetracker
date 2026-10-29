@@ -1,6 +1,7 @@
 #!/bin/bash
 # Laat de tracker elke dag om 8u en 18u draaien (macOS launchd).
-# Stond je Mac uit of sliep hij? Dan draait hij zodra de Mac weer wakker is.
+# launchd start de tracker elke 15 minuten met --gepland; die draait alleen als het laatste
+# vaste moment (8u/18u) nog niet gelukt is en er internet is. Sliep je Mac, dan wordt het ingehaald.
 #
 # macOS laat geplande taken niet in ~/Documents, daarom wordt de code gekopieerd
 # naar ~/Library/Application Support/porsche-tracker en draait hij daar.
@@ -28,8 +29,9 @@ cat > "$PLIST" <<EOF
 <dict>
   <key>Label</key><string>$LABEL</string>
   <key>ProgramArguments</key>
-  <array><string>/usr/bin/python3</string><string>$APP/tracker.py</string></array>
+  <array><string>/usr/bin/python3</string><string>$APP/tracker.py</string><string>--gepland</string></array>
   <key>WorkingDirectory</key><string>$APP</string>
+  <key>StartInterval</key><integer>900</integer>
   <key>StartCalendarInterval</key>
   <array>
     <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>0</integer></dict>
@@ -41,4 +43,4 @@ cat > "$PLIST" <<EOF
 </plist>
 EOF
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "Geïnstalleerd: draait dagelijks om 08:00 en 18:00. Dashboard: $DIR/dashboard.html"
+echo "Geïnstalleerd: draait dagelijks om 08:00 en 18:00 (gemist = ingehaald, check elke 15 min). Dashboard: $DIR/dashboard.html"
