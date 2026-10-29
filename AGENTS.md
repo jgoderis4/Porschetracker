@@ -25,6 +25,10 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
   Advertenties met "verkocht/sold/gereserveerd" in de titel worden overgeslagen.
 - **Favorieten / verbergen / notities** staan alleen in de browser (localStorage `porsche-mijn`), niet in Python:
   verborgen auto's geven dus nog wel meldingen.
+- **Knop "Nu zoeken"** (dashboard): `knop.py` is een stdlib-hulpserver op 127.0.0.1:8911 (eigen launchd-agent, KeepAlive)
+  die `tracker.py` start. Alleen Origin `null` (file://) of geen Origin mag een run starten. Een slot (`tracker.lock`, flock)
+  voorkomt dat een geplande en manuele run tegelijk lopen; het slot gaat los na het schrijven van het dashboard,
+  zodat een open meldingsvenster niets blokkeert. Draait de hulpserver niet, dan is de knop verborgen.
 - `dashboard.html` – symlink naar het gegenereerde dashboard; log: `~/Library/Application Support/porsche-tracker/tracker.log`
 
 Melding (venster met geluid + knop "Open dashboard"; macOS-notificaties worden vanuit scripts tegengehouden) bij een nieuwe auto met score ≥ `melding_vanaf_score` en BIV ≤ `max_biv`,

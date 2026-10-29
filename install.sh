@@ -7,18 +7,24 @@
 # naar ~/Library/Application Support/porsche-tracker en draait hij daar.
 # => Na het aanpassen van config.json of tracker.py: ./install.sh opnieuw draaien.
 #
+# Daarnaast draait knop.py altijd mee (alleen bereikbaar vanop deze Mac, poort 8911):
+# die zit achter de knop "Nu zoeken" in het dashboard.
+#
 # Verwijderen: ./install.sh --uninstall
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 APP="$HOME/Library/Application Support/porsche-tracker"
 LABEL="be.keypoint.porsche-tracker"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+KLABEL="$LABEL.knop"
+KPLIST="$HOME/Library/LaunchAgents/$KLABEL.plist"
 
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-if [ "$1" = "--uninstall" ]; then rm -f "$PLIST"; echo "Verwijderd (gegevens blijven in $APP)."; exit 0; fi
+launchctl bootout "gui/$(id -u)/$KLABEL" 2>/dev/null || true
+if [ "$1" = "--uninstall" ]; then rm -f "$PLIST" "$KPLIST"; echo "Verwijderd (gegevens blijven in $APP)."; exit 0; fi
 
 mkdir -p "$APP" "$HOME/Library/LaunchAgents"
-cp "$DIR/tracker.py" "$DIR/config.json" "$DIR/dashboard_template.html" "$APP/"
+cp "$DIR/tracker.py" "$DIR/knop.py" "$DIR/config.json" "$DIR/dashboard_template.html" "$APP/"
 rm -rf "$APP/bronnen" && mkdir -p "$APP/bronnen" && cp "$DIR"/bronnen/*.py "$APP/bronnen/" 2>/dev/null || true
 ln -sfn "$APP/dashboard.html" "$DIR/dashboard.html"
 
@@ -42,5 +48,22 @@ cat > "$PLIST" <<EOF
 </dict>
 </plist>
 EOF
+cat > "$KPLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$KLABEL</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/python3</string><string>$APP/knop.py</string></array>
+  <key>WorkingDirectory</key><string>$APP</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>$APP/tracker.log</string>
+  <key>StandardErrorPath</key><string>$APP/tracker.log</string>
+</dict>
+</plist>
+EOF
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "Geïnstalleerd: draait dagelijks om 08:00 en 18:00 (gemist = ingehaald, check elke 15 min). Dashboard: $DIR/dashboard.html"
+launchctl bootstrap "gui/$(id -u)" "$KPLIST"
+echo "Geïnstalleerd: draait dagelijks om 08:00 en 18:00 (gemist = ingehaald, check elke 15 min), knop 'Nu zoeken' actief. Dashboard: $DIR/dashboard.html"

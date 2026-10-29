@@ -8,6 +8,7 @@ en schrijft een dashboard (dashboard.html). Bij nieuwe toppers volgt een Mac-mel
 
 Alleen standaardbibliotheek, werkt met de Python 3.9 die macOS meelevert.
 """
+import fcntl
 import importlib
 import json
 import math
@@ -31,6 +32,8 @@ STATE_FILE = DATA_DIR / "state.json"
 DASHBOARD = DATA_DIR / "dashboard.html"
 # Geheime ntfy-kanaalnaam: wie hem kent, kan meelezen. Staat bewust niet in de repo.
 NTFY_TOPIC_FILE = DATA_DIR / "ntfy_topic.txt"
+# Slot zodat een geplande en een manuele run (knop in het dashboard) nooit tegelijk lopen.
+SLOT_FILE = DATA_DIR / "tracker.lock"
 
 ECHTE_GTS = re.compile(r"carrera\s*(4\s*)?gts|targa\s*(4\s*)?gts|\b4\s*gts|\bgts\s*cabr|99[12](\.\d)?\s*gts"
                        r"|\d\.\d\s*gts|^gts")
@@ -312,6 +315,27 @@ def score(cars):
 
 
 # ---------------------------------------------------------------- hoofdlus
+
+_slot = None
+
+
+def slot_nemen():
+    """True als deze run het slot heeft; False als er al een run bezig is."""
+    global _slot
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    _slot = open(SLOT_FILE, "w")
+    try:
+        fcntl.flock(_slot, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return True
+    except OSError:
+        return False
+
+
+def slot_vrijgeven():
+    """Na het schrijven van het dashboard: een openstaand meldingsvenster mag een nieuwe run niet blokkeren."""
+    if _slot:
+        fcntl.flock(_slot, fcntl.LOCK_UN)
+
 
 def melding(msg, knop_dashboard=True):
     """Venster met geluid i.p.v. een macOS-notificatie: die worden vanuit scripts vaak stil
@@ -713,6 +737,7 @@ def main():
                                                                 reverse=True)],
                "verkoopsnelheid": snelheid, "gestart": gestart, "waardecurve": curve}
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
+    slot_vrijgeven()
 
     print(f"{now}: {len(uniek)} auto's, {len(nieuw_top)} nieuwe toppers, fouten: {errors or 'geen'}")
     if "--geen-melding" in sys.argv:
@@ -740,6 +765,8 @@ if __name__ == "__main__":
              url="https://ntfy.sh/" + ntfy_topic())
         melding("Testmelding: zo ziet een melding eruit.\n\n"
                 "• GTS Cabrio 991.1 2015, 34.859 km, €105.800 – score 80")
+    elif not slot_nemen():
+        print(f"{datetime.now().isoformat(timespec='minutes')}: er loopt al een run, deze wordt overgeslagen")
     elif "--gepland" in sys.argv:  # door launchd, elke 15 min
         state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
         if run_nodig(state, datetime.now()):

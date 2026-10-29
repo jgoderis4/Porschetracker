@@ -43,6 +43,11 @@
   .tag.drop { background: var(--good); }
   .tag.terug { background: var(--accent); }
   .tag.offline { background: var(--muted); }
+  .kop { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  #zoeknu { font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
+            border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  #zoeknu:hover:not(:disabled) { border-color: var(--accent); }
+  #zoeknu:disabled { cursor: default; color: var(--muted); }
   h1 small { font-size: 0.55em; font-weight: 500; color: var(--muted); }
   .weg { background: var(--card); border: 1px solid var(--line); padding: 8px 12px; border-radius: 8px; margin-top: 12px; font-size: 13px; }
   .weg summary { cursor: pointer; }
@@ -123,7 +128,10 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Porsche GTS/Turbo tracker <small>911 Cabrio &amp; Targa</small></h1>
+  <div class="kop">
+    <h1>Porsche GTS/Turbo tracker <small>911 Cabrio &amp; Targa</small></h1>
+    <button id="zoeknu" hidden></button>
+  </div>
   <div class="sub" id="sub"></div>
   <div id="errs"></div>
   <div id="weg"></div>
@@ -649,6 +657,33 @@ function render() {
     </div>`; }).join("") : '<div class="empty">Geen auto\'s die aan deze filters voldoen.</div>';
   vergelijkBalk();
 }
+
+// Knop "Nu zoeken": praat met knop.py (lokale hulpserver, zie install.sh).
+// Draait die niet (bv. dashboard op een andere computer), dan blijft de knop verborgen.
+const KNOP_URL = "http://127.0.0.1:8911";
+let zoekStart = null;
+async function zoekStatus() {
+  const b = $("zoeknu");
+  let st;
+  try { st = await (await fetch(KNOP_URL + "/status", { cache: "no-store" })).json(); }
+  catch { b.hidden = true; return; }
+  b.hidden = false;
+  // klaar = het dashboard is herschreven na het begin van de run (of de run is gestopt zonder resultaat)
+  if (zoekStart && st.bijgewerkt && Date.parse(st.bijgewerkt) >= zoekStart) return location.reload();
+  if (zoekStart && !st.bezig && Date.now() - zoekStart > 20000) zoekStart = null;
+  const loopt = st.bezig || !!zoekStart;
+  b.disabled = loopt;
+  b.textContent = loopt ? "⏳ Bezig met zoeken…" : "↻ Nu zoeken";
+  b.title = loopt ? "Een run duurt een paar minuten; het dashboard herlaadt vanzelf"
+                  : "Start nu een zoekrun op alle sites";
+  if (loopt) { if (!zoekStart) zoekStart = Date.now() - 5000; setTimeout(zoekStatus, 3000); }
+}
+$("zoeknu").addEventListener("click", async () => {
+  zoekStart = Date.now() - 2000;
+  try { await fetch(KNOP_URL + "/zoek", { method: "POST" }); } catch {}
+  zoekStatus();
+});
+zoekStatus();
 
 if (!DATA) {
   $("grid").innerHTML = '<div class="empty">Nog geen gegevens — draai eerst <code>python3 tracker.py</code>.</div>';
