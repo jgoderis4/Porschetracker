@@ -170,7 +170,8 @@
         <option value="score">Score (hoog → laag)</option>
         <option value="prijs_op">Prijs (laag → hoog)</option>
         <option value="prijs_af">Prijs (hoog → laag)</option>
-        <option value="deal">Grootste korting t.o.v. markt</option>
+        <option value="deal">Grootste korting t.o.v. markt (%)</option>
+        <option value="deal_eur">Grootste korting t.o.v. markt (€)</option>
         <option value="recent_d">Recentste prijsdaling</option>
         <option value="daling">Grootste prijsdaling</option>
         <option value="km">Kilometers (laag → hoog)</option>
@@ -388,6 +389,9 @@ const SORTS = {
   prijs_op: (a, b) => a.prijs - b.prijs,
   prijs_af: (a, b) => b.prijs - a.prijs,
   deal:     (a, b) => (b.deal_pct ?? -99) - (a.deal_pct ?? -99),
+  // zelfde basis als deal_pct: marktprijs t.o.v. vraagprijs + importkosten, maar in euro
+  deal_eur: (a, b) => (b.marktprijs != null ? b.marktprijs - b.prijs - b.import_kosten : -1e9)
+                    - (a.marktprijs != null ? a.marktprijs - a.prijs - a.import_kosten : -1e9),
   daling:   (a, b) => b.prijsdaling_pct - a.prijsdaling_pct || b.score - a.score,
   km:       (a, b) => a.km - b.km,
   jaar:     (a, b) => (b.jaar * 12 + b.maand) - (a.jaar * 12 + a.maand),
@@ -504,7 +508,9 @@ function priceBlock(c) {
   const hist = c.prijshistoriek, first = hist[0][1];
   const title = esc(hist.map(([d, p]) => `${dmy(d)}: ${fmt(p)}`).join("\n"));
   const deal = c.deal_pct != null
-    ? `<span class="market" style="color:var(${c.deal_pct >= 0 ? "--good" : "--bad"})">markt ≈ ${fmt(c.marktprijs)}</span>` : "";
+    ? `<span class="market" style="color:var(${c.deal_pct >= 0 ? "--good" : "--bad"})"
+        title="Geschatte marktprijs, vergeleken met vraagprijs${c.import_kosten ? " + importkosten" : ""}">markt ≈ ${fmt(c.marktprijs)}
+        · ${fmt(Math.abs(c.marktprijs - c.prijs - c.import_kosten))} ${c.marktprijs - c.prijs - c.import_kosten >= 0 ? "onder" : "boven"}</span>` : "";
   let line = "";
   if (c.prijs < first) {
     line = `<div class="dropline" title="${title}">↓ ${fmt(first - c.prijs)} goedkoper (−${c.prijsdaling_pct}%)
