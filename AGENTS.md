@@ -53,6 +53,23 @@ het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerd
   (nieuwprijs in config.json); die vlakt bij hoge leeftijd vanzelf af.
 - AutoScout24 wordt per periode (≤2013 / ≥2014) bevraagd; kmto = de ruimste grens, het echte km-filter gebeurt per generatie.
 
+## Vlaggen, opnieuw te koop, zoekprofielen, koopmoment
+- **Vlaggen** (`vlaggen()`): rood (ongeval, schade, hagel, motor/bak, US-import, zonder keuring/export, 5+ eigenaars) en
+  groen (PCCB, Sport Chrono, sportuitlaat, PDCC, kuipstoelen, frontlift, achterasbesturing, 1e eigenaar, onderhoudshistoriek).
+  AutoScout24: beschrijving + vaste velden (`hadAccident`, `damageConditions`, `originalMarket`, `noOfPreviousOwners`,
+  `hasFullServiceHistory`) van de detailpagina, max. `DETAILS_PER_RUN` nieuwe per run, gecachet in `details` (state.json;
+  regels gewijzigd? → `details` leegmaken). Andere sites: uit hun eigen tekst. Ontkenning vlak ervoor ("kein Unfallschaden")
+  telt niet (`NIET`, alleen spaties ertussen). Score: `rode_vlag`/`groene_vlag` (+ max) in config.json.
+- **Opnieuw te koop**: een nieuwe advertentie die via `zelfde_auto()` overeenkomt met een auto uit `verkocht` krijgt het oude id
+  (geschiedenis blijft, niet "nieuw"; goedkoper = prijsdalingsmelding). ≥ 2 dagen weg → `opnieuw` (tag op de kaart) en het
+  verdwijnen wordt uit `verkoop_historiek` gehaald. `verkocht` bewaart daarvoor model/generatie/jaar/km.
+- **Zoekprofielen**: dashboard → "+ Huidige filters bewaren" → `knop.py` POST /profielen → `zoekprofielen.json` in Application
+  Support (persoonlijk, niet in git). `past_bij()` (Python) = `pastBij()` (JS) = de filters van `render()`: zelfde regels houden!
+  Nieuwe of goedkopere auto die past → altijd melding (ook onder `melding_vanaf_score`), titel met 🎯, ntfy-prioriteit 5.
+- **Koopmoment** (dashboard, `koopmoment()`): per kalendermaand de mediaan-vraagprijs t.o.v. het gemiddelde per segment;
+  zinvol na ±1 jaar data.
+- **Prijsgrafiekje** op de kaart vanaf 2 prijzen (`priceBlock()`).
+
 ## Kost, bod, verkoopsnelheid, samenvatting, vergelijken
 - **Kost per jaar** (`totale_kost()`): afschrijving over `kost_jaren` volgens de waardecurve van het model
   (prijs × r(a+jaren)/r(a)) + BIV + import + verkeersbelasting + `onderhoud_per_jaar`, gedeeld door de jaren. Geen verzekering.

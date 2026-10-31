@@ -10,6 +10,9 @@ Persoonlijke tool die 2x per dag zoekt naar tweedehands **Porsche 911 GTS en Tur
 - **Kost per jaar en biedvoorstel:** afschrijving (waardecurve), BIV, import, verkeersbelasting en onderhoud; startbod en plafond per auto
 - **Verkoopsnelheid:** hoe snel vergelijkbare auto's verkocht raken, plus een vergelijkknop om 3 auto's naast elkaar te zetten
 - **Knop ↻ Nu zoeken** in het dashboard: start meteen een zoekrun, het dashboard herlaadt vanzelf als hij klaar is
+- **Rode en groene vlaggen** uit de beschrijving (ongeval, US-import, … / PCCB, Sport Chrono, 1e eigenaar, …) en **"opnieuw te koop"**-herkenning
+- **Eigen zoekprofielen**: bewaar een filtercombinatie en krijg een opvallende 🎯-melding als er een auto bij past
+- **Beste koopmoment** per maand en een prijsgrafiekje op elke kaart
 - **Weekoverzicht** op de gsm elke zondagavond
 - **Dubbels samengevoegd:** dezelfde auto op meerdere sites wordt één kaart met de laagste prijs
 - **Meldingen:** een venster op de Mac en een pushmelding op de gsm (via [ntfy](https://ntfy.sh)) bij een nieuwe topper of een prijsdaling; met de knop 📲 Push op een kaart stuur je zelf een auto door naar wie het kanaal volgt

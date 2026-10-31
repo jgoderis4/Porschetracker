@@ -33,6 +33,8 @@ STATE_FILE = DATA_DIR / "state.json"
 DASHBOARD = DATA_DIR / "dashboard.html"
 # Geheime ntfy-kanaalnaam: wie hem kent, kan meelezen. Staat bewust niet in de repo.
 NTFY_TOPIC_FILE = DATA_DIR / "ntfy_topic.txt"
+# Eigen zoekprofielen, bewaard vanuit het dashboard via knop.py (persoonlijk: niet in de repo)
+PROFIELEN_FILE = DATA_DIR / "zoekprofielen.json"
 # Slot zodat een geplande en een manuele run (knop in het dashboard) nooit tegelijk lopen.
 SLOT_FILE = DATA_DIR / "tracker.lock"
 
@@ -200,6 +202,84 @@ def echt_open_dak(car, cache):
     return cache[car["id"]]
 
 
+# Rode en groene vlaggen in de beschrijving. Een ontkenning vlak ervoor telt niet mee:
+# "kein Unfallschaden", "geen hagelschade" of "no accident damage" zijn geen rode vlag.
+# (alleen spaties ertussen: "kein Unfallschaden, Sport Chrono" ontkent de Sport Chrono niet)
+NIET = re.compile(r"\b(geen|kein|keine|keinen|no|zonder|ohne|nicht|niet|nie)(\s+[\w-]+){0,2}\s+$")
+ROOD = [("ongeval", r"unfallwagen|unfallschaden|unfallreparatur|unfallfahrzeug|vorschad|vorschäd|instandgesetzt|ongevalschade|accident damage|accidented|salvage"),
+        ("hagelschade", r"hagelschad"),
+        ("motor-/bakschade", r"motorschad|getriebeschad|motor defe[ck]t|versnellingsbak defect"),
+        ("US-import", r"\bus[- ]?import|usa[- ]?import|\bex[- ]?usa\b|amerikaanse import|import (uit|aus) (de )?(usa|vs|amerika)"),
+        ("zonder keuring/export", r"zonder keuring|ohne tüv|nur (für )?export|export only|alleen export|voor export")]
+GROEN = [("PCCB", r"pccb|keramikbrems|keramische rem|ceramic brake|keramik-brems"),
+         ("Sport Chrono", r"sport\s*-?\s*chrono"),
+         ("sportuitlaat", r"sportabgas|sportauspuff|sportuitlaat|sport exhaust|\bpse\b"),
+         ("PDCC", r"\bpdcc\b"),
+         ("kuipstoelen", r"schalensitz|kuipstoel|bucket seat|vollschalen"),
+         ("frontlift", r"liftsystem|lift[- ]system|front ?lift|vorderachslift|liftfunktion|neuslift|vooras[- ]?lift"),
+         ("achterasbesturing", r"hinterachslenkung|rear[- ]axle steering|achterasbesturing|achterwielbesturing"),
+         ("1e eigenaar", r"\b1\. ?hand\b|erste hand|erstbesitz|eerste eigenaar|één eigenaar|first owner|one owner"),
+         ("onderhoudshistoriek", r"scheckheft|lückenlos|onderhoudsboekje|full service history|porsche[- ]?(onderhoud|gewartet|service)")]
+# ... en ook niet als het antwoord erna nee is: "Vorschäden: keine", "Unfallschaden: nein"
+NA = re.compile(r"^\W{0,3}(nein|keine?|no|none|geen|neen)\b")
+DETAILS_PER_RUN = 40  # AutoScout24-detailpagina's per run (daarna in state.json): beleefd blijven
+
+
+def vlag(patroon, tekst):
+    return any(not NIET.search(tekst[max(0, m.start() - 30):m.start()]) and not NA.search(tekst[m.end():m.end() + 15])
+               for m in re.finditer(r"(?:" + patroon + r")\w*", tekst))
+
+
+def vlaggen(tekst, velden=None):
+    """Rode/groene vlaggen uit de (kleine letters) tekst + de vaste velden van AutoScout24 (ongeval, schade, ...)."""
+    v = velden or {}
+    rood = [naam for naam, p in ROOD if vlag(p, tekst)]
+    groen = [naam for naam, p in GROEN if vlag(p, tekst)]
+    if v.get("hadAccident") and "ongeval" not in rood:
+        rood.insert(0, "ongeval")
+    if v.get("damageConditions"):
+        rood.append("schade gemeld")
+    herkomst = v.get("originalMarket") or ""
+    if re.search(r"verenigde staten|usa|amerika|canada|japan|emiraten|arab|koeweit|qatar|mexico", herkomst.lower()) \
+            and "US-import" not in rood:
+        rood.append(f"import uit {herkomst}")
+    eigenaars = v.get("noOfPreviousOwners")
+    if eigenaars and eigenaars >= 5:
+        rood.append(f"{eigenaars} vorige eigenaars")
+    if eigenaars == 1 and "1e eigenaar" not in groen:
+        groen.append("1e eigenaar")
+    if v.get("hasFullServiceHistory") and "onderhoudshistoriek" not in groen:
+        groen.append("onderhoudshistoriek")
+    return {"rood": rood, "groen": groen}
+
+
+def as_details(car, cache):
+    """Beschrijving + vaste velden van de AutoScout24-detailpagina: één keer per auto, daarna uit de cache."""
+    if car["id"] not in cache:
+        html = get(car["url"])
+        m = re.search(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+        ld = json.loads(m.group(1))["props"]["pageProps"]["listingDetails"]
+        tekst = re.sub(r"<[^>]+>", " ", ld.get("description") or "")
+        cache[car["id"]] = vlaggen((car["titel"] + " " + tekst).lower(), ld.get("vehicle"))
+        time.sleep(1.5)
+    return cache[car["id"]]
+
+
+def zoekprofielen():
+    try:
+        return json.loads(PROFIELEN_FILE.read_text())
+    except (OSError, ValueError):
+        return []
+
+
+def past_bij(c, p):
+    """Zelfde regels als de filters in het dashboard (render() in dashboard_template.html)."""
+    return ((not p.get("gens") or c["generatie"] in p["gens"]) and (not p.get("mdl") or c["model"] == p["mdl"])
+            and (not p.get("typ") or c["type"] == p["typ"]) and (not p.get("van") or (c["jaar"] or 0) >= int(p["van"]))
+            and (not p.get("maxp") or c["prijs"] <= int(p["maxp"])) and (not p.get("man") or c["manueel"])
+            and (not p.get("be") or c["land"] == "BE"))
+
+
 def zelfde_auto(a, b):
     """Dezelfde wagen op twee sites: zelfde model en bouwjaar, km bijna gelijk (sites ronden
     soms af) en prijs binnen 10% (dealer vraagt op eigen site soms minder). De bak vergelijken
@@ -345,8 +425,11 @@ def score(cars):
             pts += s["porsche_approved"]; why.append("Porsche Approved")
         if re.search(r"porsche (zentrum|centre|center|centrum)", c["verkoper"].lower()):
             pts += s["porsche_centre"]; why.append("Porsche Centre")
-        if "chrono" in txt or "sportuitlaat" in txt or "abgas" in txt or "sport exhaust" in txt:
-            pts += s["chrono_of_uitlaat_vermeld"]
+        vl = c.get("vlaggen") or {}
+        if vl.get("rood"):
+            pts += max(s["rode_vlag_max"], s["rode_vlag"] * len(vl["rood"]))  # als labels op de kaart
+        if vl.get("groen"):
+            pts += min(s["groene_vlag_max"], s["groene_vlag"] * len(vl["groen"]))
         if c["dagen_online"] >= s["lang_online_dagen"]:
             pts += s["lang_online"]; why.append(f'{c["dagen_online"]} dagen te koop: ruimte om te onderhandelen')
         pts += max(0, (max_km(c) - c["km"]) / max_km(c)) * s["lage_km_max"]
@@ -432,11 +515,13 @@ def daling(c):
 
 def push_auto(c):
     reden = f"Prijsdaling −€{nl(daling(c))}" if not c["nieuw"] and daling(c) else "Nieuw"
-    push(f"{reden}: {c['model']} {c['type']} {c['generatie']} – score {c['score']}",
+    profiel = c.get("profielen")  # past bij een eigen zoekprofiel: titel met 🎯 en hoogste prioriteit
+    push(("🎯 " + ", ".join(profiel) + " · " if profiel else "")
+         + f"{reden}: {c['model']} {c['type']} {c['generatie']} – score {c['score']}",
          auto_regel(c).lstrip("• ") + f"\nAll-in ±€{c['all_in']:,} (incl. BIV €{c['biv']:,}".replace(",", ".")
          + (f" + import €{c['import_kosten']:,}".replace(",", ".") if c["import_kosten"] else "")
          + f") · {c['bron']}",
-         url=c["url"], prioriteit=4)
+         url=c["url"], prioriteit=5 if profiel else 4)
 
 
 def nl(n):
@@ -743,6 +828,9 @@ def main():
         if c["id"] not in state["auto"]:
             oud = next((i for i, o in state["auto"].items()
                         if i not in gevonden and "laatst" in o and zelfde_auto(o["laatst"], c)), None)
+            if not oud:  # eerder verdwenen en nu opnieuw te koop (nieuwe advertentie): geschiedenis behouden
+                oud = next((i for i, v in verkocht.items()
+                            if i not in gevonden and v.get("model") and zelfde_auto(v, c)), None)
             if oud:
                 gevonden.discard(c["id"])
                 c["id"] = oud
@@ -757,14 +845,24 @@ def main():
             laatst = old.get("laatst", {})
             verkocht[i] = {"titel": laatst.get("titel", ""), "prijs": old["prijs"], "url": laatst.get("url"),
                            "weg_sinds": now, "eerst_gezien": old["eerst_gezien"],
-                           "prijshistoriek": old["prijshistoriek"]}
+                           "prijshistoriek": old["prijshistoriek"],
+                           # om een auto te herkennen die later opnieuw te koop komt (zelfde_auto)
+                           **{k: laatst.get(k) for k in ("model", "generatie", "jaar", "km", "manueel", "type")}}
             if laatst.get("model"):  # voor de verkoopsnelheid, blijft ook na de 60 dagen bewaard
                 verkoop_historiek.append({k: laatst[k] for k in ("model", "generatie", "manueel", "type", "prijs")}
                                          | {"eerst_gezien": old["eerst_gezien"], "weg_sinds": now,
                                             "dagen": (date.today() - date.fromisoformat(old["eerst_gezien"][:10])).days})
     for c in uniek:
-        old = state["auto"].get(c["id"]) or verkocht.pop(c["id"], None)  # terug na verkocht: niet opnieuw "nieuw"
+        terug = None if c["id"] in state["auto"] else verkocht.pop(c["id"], None)
+        old = state["auto"].get(c["id"]) or terug  # terug na verkocht: niet opnieuw "nieuw"
         c.setdefault("bron_offline", False)
+        if terug and (date.today() - date.fromisoformat(terug["weg_sinds"][:10])).days >= 2:
+            c["opnieuw"] = {"weg_sinds": terug["weg_sinds"], "prijs": terug["prijs"]}
+            # het verdwijnen telde mee in de verkoopsnelheid, maar het was dus geen verkoop
+            verkoop_historiek = [h for h in verkoop_historiek if (h["eerst_gezien"], h["weg_sinds"])
+                                 != (terug["eerst_gezien"], terug["weg_sinds"])]
+        elif old and old.get("laatst", {}).get("opnieuw"):
+            c["opnieuw"] = old["laatst"]["opnieuw"]
         if old:
             c["eerst_gezien"] = old["eerst_gezien"]
             c["prijshistoriek"] = old["prijshistoriek"]
@@ -781,9 +879,25 @@ def main():
         # na het samenvoegen van dubbels: prijs = laagste van alle sites
         c["import_kosten"] = import_kosten(c)
         c["all_in"] = c["prijs"] + c["biv"] + c["import_kosten"]
+    # vlaggen: AutoScout24 via de detailpagina (max. DETAILS_PER_RUN nieuwe per run), andere sites uit hun tekst
+    details, opgehaald = state.get("details", {}), 0
+    for c in uniek:
+        if c["bron_offline"]:
+            continue
+        if c["bron"] == "AutoScout24":
+            if c["id"] not in details and opgehaald < DETAILS_PER_RUN:
+                opgehaald += 1
+                try:
+                    as_details(c, details)
+                except Exception:
+                    pass  # volgende run opnieuw
+            c["vlaggen"] = details.get(c["id"])  # None = nog niet bekeken
+        else:
+            c["vlaggen"] = vlaggen((c["titel"] + " " + c.get("_tekst", "")).lower())
+    details = {i: d for i, d in details.items() if i in {c["id"] for c in uniek}}
     score(uniek)
 
-    nieuw_top = []
+    nieuw_top, profielen = [], zoekprofielen()
     for c in uniek:
         c.pop("_tekst", None)
         vorige = c.pop("_vorige_prijs")
@@ -791,7 +905,9 @@ def main():
             continue
         interessant = c["score"] >= CONFIG["melding_vanaf_score"] and c["biv"] <= CONFIG["max_biv"]
         gedaald = vorige and vorige - c["prijs"] >= vorige * CONFIG["melding_bij_prijsdaling_pct"] / 100
-        if interessant and (c["nieuw"] or gedaald) and state.get("laatste_run"):
+        # past hij bij een eigen zoekprofiel, dan altijd een melding (ongeacht score of BIV)
+        c["profielen"] = [p["naam"] for p in profielen if past_bij(c, p)]
+        if (interessant or c["profielen"]) and (c["nieuw"] or gedaald) and state.get("laatste_run"):
             nieuw_top.append(c)
 
     markt = markt_punt(uniek, state.get("markt", []), now[:10])
@@ -812,7 +928,7 @@ def main():
     herkansingen = herkansingen + 1 if mislukt else 0
     herkansen_om = ((datetime.now() + timedelta(minutes=30)).isoformat(timespec="minutes")
                     if mislukt and herkansingen <= HERKANSINGEN else None)
-    state = {"laatste_run": now, "fouten": errors, "herkansingen": herkansingen, "herkansen_om": herkansen_om, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
+    state = {"laatste_run": now, "fouten": errors, "herkansingen": herkansingen, "herkansen_om": herkansen_om, "typecheck": typecheck, "details": details, "bronnen": bron_historiek, "markt": markt,
              "marktstaal": staal, "verkocht": verkocht, "gestart": gestart, "verkoop_historiek": verkoop_historiek[-1000:],
              # minstens één bron gelukt: dit vaste moment is gedaan (anders volgt een nieuwe poging)
              "laatste_geslaagde_run": now if aantallen else state.get("laatste_geslaagde_run"),
@@ -829,7 +945,7 @@ def main():
                "ntfy_topic": ntfy_topic(),
                "verkocht": [dict(v, id=i) for i, v in sorted(verkocht.items(), key=lambda kv: kv[1]["weg_sinds"],
                                                                 reverse=True)],
-               "verkoopsnelheid": snelheid, "gestart": gestart, "waardecurve": curve}
+               "verkoopsnelheid": snelheid, "gestart": gestart, "waardecurve": curve, "zoekprofielen": profielen}
     DASHBOARD.write_text(TEMPLATE.read_text().replace("/*__DATA__*/null", json.dumps(payload)))
     slot_vrijgeven()
 
@@ -840,7 +956,7 @@ def main():
         push("Porsche GTS/Turbo tracker: weekoverzicht", samenvatting(uniek, verkocht, markt), prioriteit=3)
     if nieuw_top:
         nieuw_top.sort(key=lambda c: -c["score"])
-        regels = "\n".join(auto_regel(c) for c in nieuw_top[:5])
+        regels = "\n".join(("🎯 " if c.get("profielen") else "") + auto_regel(c) for c in nieuw_top[:5])
         meer = f"\n… en nog {len(nieuw_top) - 5}" if len(nieuw_top) > 5 else ""
         for c in nieuw_top[:5]:
             push_auto(c)

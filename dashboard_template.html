@@ -55,6 +55,23 @@
   .car.flits { outline: 3px solid #d92d20; outline-offset: 2px; }
   .tag.terug { background: var(--accent); }
   .tag.offline { background: var(--muted); }
+  .tag.opnieuw { background: #7a4fd0; }
+  .tag.profiel { background: #0f766e; }
+  .vlaggen { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; }
+  .vlaggen span { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid; }
+  .vlaggen .rood { color: var(--bad); border-color: var(--bad); font-weight: 600; }
+  .vlaggen .groen { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+  .vlaggen .grijs { color: var(--muted); border-color: var(--line); }
+  .spark { vertical-align: middle; margin-left: 6px; }
+  #profielen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -6px 0 14px; font-size: 13px; }
+  #profielen button { font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+                      border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  #profielen button.del { padding: 3px 7px; margin-left: -4px; color: var(--muted); }
+  #profielen button.nieuw { border-style: dashed; color: var(--muted); }
+  .maanden { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 120px; margin-top: 8px; }
+  .maanden div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; font-size: 11px; color: var(--muted); }
+  .maanden i { display: block; width: 70%; background: var(--s1); border-radius: 3px 3px 0 0; }
+  .maanden i.laag { background: var(--good); }
   .kop { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
   #zoeknu { font: inherit; font-size: 14px; padding: 6px 14px; border-radius: 999px; cursor: pointer;
             border: 1px solid var(--line); background: var(--card); color: var(--text); }
@@ -236,6 +253,9 @@
     <table id="stabel"></table>
     <p class="note" id="snote"></p>
 
+    <h3>Beste koopmoment: prijsniveau per maand</h3>
+    <div id="koopmoment"></div>
+
     <h3>Mediaan vraagprijs per 2 weken (sinds de tracker draait)</h3>
     <div class="keys" id="mkeys"></div>
     <div class="chartbox" id="mchart"></div>
@@ -245,6 +265,7 @@
       De laatste periode loopt nog en kan dus nog bewegen.</p>
   </details>
 
+  <div id="profielen"></div>
   <div class="grid" id="grid"></div>
   <div id="vglbar"></div>
 
@@ -471,6 +492,7 @@ function vergelijkTabel() {
       ${rij("Te koop sinds", c => `${c.dagen_online} d`)}
       ${rij("Prijsdaling", c => c.prijsdaling_pct ? `−${c.prijsdaling_pct}%` : "–")}
       ${rij("Pluspunten", c => esc(c.waarom.join(" · ")))}
+      ${rij("Vlaggen", c => c.vlaggen ? esc([...c.vlaggen.rood.map(x => "⚠ " + x), ...c.vlaggen.groen].join(" · ") || "–") : "nog niet bekeken")}
       ${rij("Verkoper", c => esc(c.bron + (c.verkoper ? " · " + c.verkoper : "")))}
       ${rij("Notitie", c => esc(mijn(c.id).notitie || ""))}
     </table></div></div>`;
@@ -504,6 +526,65 @@ function sitesBlock(c) {
     `<span class="site ${x.prijs === min && s.some(y => y.prijs !== min) ? "cheap" : ""}" data-url="${esc(x.url)}">${esc(x.bron)} ${fmt(x.prijs)}</span>`).join("")}</div>`;
 }
 
+// Rode/groene vlaggen uit de beschrijving en de vaste velden (zie vlaggen() in tracker.py)
+function vlaggenBlock(c) {
+  if (c.vlaggen === undefined) return "";
+  if (!c.vlaggen) return `<div class="vlaggen"><span class="grijs" title="De detailpagina wordt bij een volgende run gelezen">beschrijving nog niet gelezen</span></div>`;
+  const r = c.vlaggen.rood.map(x => `<span class="rood" title="Rode vlag: navragen">⚠ ${esc(x)}</span>`);
+  const g = c.vlaggen.groen.map(x => `<span class="groen">${esc(x)}</span>`);
+  return r.length || g.length ? `<div class="vlaggen">${r.join("")}${g.join("")}</div>` : "";
+}
+
+// Eigen zoekprofielen: bewaarde filtercombinaties. tracker.py stuurt een opvallende pushmelding (🎯) als
+// een nieuwe of goedkopere auto erbij past, ongeacht de score. Bewaren gaat via knop.py (zoekprofielen.json).
+let PROFIELEN = (DATA && DATA.zoekprofielen) || [], KNOP_OK = false;
+const pastBij = (c, p) => (!p.gens?.length || p.gens.includes(c.generatie)) && (!p.mdl || c.model === p.mdl)
+  && (!p.typ || c.type === p.typ) && (!p.van || c.jaar >= +p.van) && (!p.maxp || c.prijs <= +p.maxp)
+  && (!p.man || c.manueel) && (!p.be || c.land === "BE");  // zelfde regels als past_bij() in tracker.py
+function huidigeFilters() {
+  const p = {};
+  if (GEN_SEL.size) p.gens = [...GEN_SEL];
+  for (const k of ["mdl", "typ", "van", "maxp"]) if ($(k).value) p[k] = $(k).value;
+  if ($("man").checked) p.man = true;
+  if ($("be").checked) p.be = true;
+  return p;
+}
+function profielBalk() {
+  const knoppen = PROFIELEN.map((p, i) => `<button data-p="${i}" title="Filters van dit profiel toepassen">🎯 ${esc(p.naam)}
+      <small>${DATA.autos.filter(c => pastBij(c, p)).length}</small></button>`
+    + (KNOP_OK ? `<button class="del" data-del="${i}" title="Zoekprofiel verwijderen">✕</button>` : ""));
+  $("profielen").innerHTML = (PROFIELEN.length ? "<span>Zoekprofielen:</span>" : "") + knoppen.join("")
+    + (KNOP_OK ? `<button class="nieuw" data-bewaar title="Bij een nieuwe of goedkopere auto die erbij past krijg je een 🎯-melding">+ Huidige filters bewaren als zoekprofiel</button>` : "");
+}
+async function profielenOpslaan(lijst) {
+  const r = await fetch(KNOP_URL + "/profielen", { method: "POST", body: JSON.stringify(lijst) });
+  const antw = await r.json();
+  if (!r.ok) throw new Error(antw.fout || r.status);
+  PROFIELEN = antw; profielBalk(); render();
+}
+document.addEventListener("click", async e => {
+  const b = e.target.closest("#profielen button");
+  if (!b) return;
+  try {
+    if (b.dataset.p !== undefined) {  // toepassen
+      const p = PROFIELEN[+b.dataset.p];
+      GEN_SEL.clear(); (p.gens || []).forEach(g => GEN_SEL.add(g)); genKnoppen();
+      for (const k of ["mdl", "typ", "van", "maxp"]) $(k).value = p[k] || "";
+      $("man").checked = !!p.man; $("be").checked = !!p.be;
+      render();
+    } else if (b.dataset.del !== undefined) {
+      const p = PROFIELEN[+b.dataset.del];
+      if (confirm(`Zoekprofiel "${p.naam}" verwijderen?`)) await profielenOpslaan(PROFIELEN.filter(x => x !== p));
+    } else if (b.dataset.bewaar !== undefined) {
+      const p = huidigeFilters();
+      if (!Object.keys(p).length) return alert("Kies eerst een paar filters (generatie, model, type, bouwjaar, max prijs, manueel of België).");
+      const naam = prompt("Naam voor dit zoekprofiel (bv. 'Manuele 997 GTS'):");
+      if (!naam || !naam.trim()) return;
+      await profielenOpslaan([...PROFIELEN, { naam: naam.trim().slice(0, 40), ...p }]);
+    }
+  } catch (err) { alert("Zoekprofiel bewaren mislukt: " + err.message); }
+});
+
 function priceBlock(c) {
   const hist = c.prijshistoriek, first = hist[0][1];
   const title = esc(hist.map(([d, p]) => `${dmy(d)}: ${fmt(p)}`).join("\n"));
@@ -518,9 +599,44 @@ function priceBlock(c) {
   } else if (c.prijs > first) {
     line = `<div class="upline" title="${title}">↑ ${fmt(c.prijs - first)} duurder sinds ${dmy(hist[0][0])}</div>`;
   }
+  // mini-grafiek van de vraagprijs (vanaf 2 prijzen): trap per prijswijziging, tot vandaag
+  let spark = "";
+  if (hist.length > 1) {
+    const pts = [...hist.map(([d, p]) => [Date.parse(d), p]), [Date.parse(DATA.bijgewerkt), c.prijs]];
+    const t0 = pts[0][0], t1 = Math.max(pts[pts.length - 1][0], t0 + 1), lo = Math.min(...pts.map(q => q[1])), hi = Math.max(...pts.map(q => q[1]));
+    const X = t => 2 + (t - t0) / (t1 - t0) * 66, Y = v => hi === lo ? 9 : 2 + (hi - v) / (hi - lo) * 14;
+    const d = pts.map(([t, v], i) => (i ? `H${X(t).toFixed(1)}V${Y(v).toFixed(1)}` : `M${X(t).toFixed(1)},${Y(v).toFixed(1)}`)).join("");
+    spark = `<svg class="spark" width="70" height="18" viewBox="0 0 70 18" aria-label="Prijsverloop"><title>${title}</title>
+      <path d="${d}" fill="none" stroke="var(${c.prijs <= first ? "--good" : "--bad"})" stroke-width="1.6"/></svg>`;
+  }
   const delen = `vraagprijs ${fmt(c.prijs)} + BIV ${fmt(c.biv)}` + (c.import_kosten ? ` + import ≈ ${fmt(c.import_kosten)}` : "");
-  return `<div class="price">${c.prijs < first ? `<span class="old">${fmt(first)}</span>` : ""}${fmt(c.prijs)}${deal}</div>${line}
+  return `<div class="price">${c.prijs < first ? `<span class="old">${fmt(first)}</span>` : ""}${fmt(c.prijs)}${spark}${deal}</div>${line}
     <div class="allin" title="${esc(delen)}">All-in ≈ <b>${fmt(c.all_in)}</b> <span>(${esc(delen.replace(/^vraagprijs [^+]+\+ /, "incl. "))})</span></div>`;
+}
+
+// Beste koopmoment: per kalendermaand het prijsniveau t.o.v. het gemiddelde, over alle model|generatie-segmenten
+// (zo telt een duurdere generatie niet zwaarder). Na een volledig jaar zie je het seizoenspatroon.
+const MAANDEN = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
+function koopmoment() {
+  const markt = DATA.markt || [], mid = a => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)];
+  const per = {};
+  for (const m of markt) for (const [k, v] of Object.entries(m.segmenten))
+    if (k.split("|").length === 2 && v.aantal >= 3) (per[k] ??= []).push(v.mediaan);
+  const gem = Object.fromEntries(Object.entries(per).map(([k, a]) => [k, a.reduce((x, y) => x + y, 0) / a.length]));
+  const maand = {};
+  for (const m of markt) {
+    const r = Object.entries(m.segmenten).filter(([k, v]) => gem[k] && v.aantal >= 3).map(([k, v]) => v.mediaan / gem[k]);
+    if (r.length) (maand[+m.datum.slice(5, 7) - 1] ??= []).push(mid(r));
+  }
+  const idx = MAANDEN.map((_, i) => maand[i] ? mid(maand[i]) * 100 : null), met = idx.filter(v => v != null);
+  const n = met.length, laagste = n >= 2 ? Math.min(...met) : null;
+  const lo = Math.min(...met, 100) - 1, hi = Math.max(...met, 100) + 1;
+  $("koopmoment").innerHTML = `<div class="maanden">${idx.map((v, i) => `<div title="${v == null ? "nog geen gegevens" : (v - 100 >= 0 ? "+" : "") + (v - 100).toFixed(1) + "% t.o.v. gemiddeld"}">
+      ${v == null ? "" : `<span>${(v - 100 >= 0 ? "+" : "") + (v - 100).toFixed(1)}%</span><i class="${v === laagste ? "laag" : ""}" style="height:${10 + (v - lo) / (hi - lo) * 70}%"></i>`}
+      <span>${MAANDEN[i]}</span></div>`).join("")}</div>
+    <p class="note">${n < 3 ? `Nog maar ${n} maand${n === 1 ? "" : "en"} gegevens: na een volledig jaar zie je hier wanneer de prijzen het laagst liggen. ` : ""}
+      Per maand: hoeveel de mediaan-vraagprijs boven of onder het gemiddelde ligt (alle modellen en generaties samen, elk even zwaar).
+      Groen = goedkoopste maand tot nu toe. Vuistregel: cabrio's zijn in de herfst en winter goedkoper dan in het voorjaar.</p>`;
 }
 
 // Marktgrafiek: één lijn per generatie, kleur hangt vast aan de generatie (niet aan de volgorde)
@@ -698,6 +814,8 @@ function render() {
         <div class="tags">${c.nieuw ? '<span class="tag">NIEUW</span>' : ""}
           ${(d => d ? `<span class="tag nu" title="${fmt(d.van)} → ${fmt(d.naar)}">↓ −${fmt(d.van - d.naar)} OP ${dmy(d.op)}</span>` : "")(recenteDaling(c))}
           ${c.prijsdaling_pct > 0 ? `<span class="tag drop">↓ PRIJS −${c.prijsdaling_pct}%</span>` : ""}${terugTag(m)}
+          ${c.opnieuw ? `<span class="tag opnieuw" title="Verdween op ${dmy(c.opnieuw.weg_sinds)} (toen ${fmt(c.opnieuw.prijs)}) en staat opnieuw te koop">↺ OPNIEUW TE KOOP${c.opnieuw.prijs > c.prijs ? " −" + fmt(c.opnieuw.prijs - c.prijs) : ""}</span>` : ""}
+          ${PROFIELEN.filter(p => pastBij(c, p)).map(p => `<span class="tag profiel">🎯 ${esc(p.naam)}</span>`).join("")}
           ${c.bron_offline ? '<span class="tag offline" title="De site lag plat bij de laatste run: gegevens van de vorige keer">SITE OFFLINE</span>' : ""}</div>
         <div class="score ${c.score >= hi ? "hi" : ""}">${c.score}</div>
       </div>
@@ -711,6 +829,7 @@ function render() {
           <span class="online ${c.dagen_online >= DATA.config.score.lang_online_dagen ? "lang" : ""}"
                 title="Sinds de tracker de advertentie zag">${c.dagen_online ? c.dagen_online + " d te koop" : "vandaag gezien"}</span>
         </div>
+        ${vlaggenBlock(c)}
         <div class="why">${esc(c.waarom.join(" · "))}</div>
         ${extraBlock(c)}
         ${sitesBlock(c)}
@@ -739,6 +858,11 @@ async function zoekStatus() {
   try { st = await (await fetch(KNOP_URL + "/status", { cache: "no-store" })).json(); }
   catch { b.hidden = true; return; }
   b.hidden = false;
+  if (!KNOP_OK && DATA) {  // eerste keer: zoekprofielen live lezen (kunnen nieuwer zijn dan de laatste run)
+    KNOP_OK = true;
+    try { PROFIELEN = await (await fetch(KNOP_URL + "/profielen", { cache: "no-store" })).json(); } catch {}
+    profielBalk(); render();
+  }
   // klaar = het dashboard is herschreven na het begin van de run (of de run is gestopt zonder resultaat)
   if (zoekStart && st.bijgewerkt && Date.parse(st.bijgewerkt) >= zoekStart) return location.reload();
   if (zoekStart && !st.bezig && Date.now() - zoekStart > 20000) zoekStart = null;
@@ -807,6 +931,8 @@ if (!DATA) {
   $("mtype").addEventListener("change", () => { waardeGrafiek(); marktGrafiek(); snelheidTabel(); });
   waardeGrafiek();
   marktGrafiek();
+  koopmoment();
+  profielBalk();
   $("gen").addEventListener("click", e => {
     const b = e.target.closest("button[data-g]");
     if (!b) return;
