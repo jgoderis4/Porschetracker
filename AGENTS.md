@@ -3,7 +3,13 @@
 Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS en Turbo (S), Cabriolet en Targa (997/991/992)
 op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Cars (WordPress-API), DCT, Bavaria Motors, Autofest), en schrijft een dashboard met score + geschatte Vlaamse BIV.
 
-- `tracker.py` – ophalen, filteren, BIV, score, dashboard, Mac-melding (alleen stdlib, Python 3.9)
+- `tracker.py` – ophalen, filteren, BIV, score, dashboard, Mac-melding (alleen stdlib, Python 3.9).
+  Blokken: ophalen · herkennen · detailpagina en vlaggen · prijs, BIV en score · markt en waardecurve ·
+  meldingen en zoekprofielen · planning, slot en dashboard · hoofdlus. `main()` = ophalen → filteren → geschiedenis →
+  vlaggen_zetten → score → te_melden → markt/kost → state + dashboard → meldingen_versturen.
+- `tests/test_tracker.py` – **na elke wijziging draaien:** `python3 -m unittest discover tests` (stdlib; unit-tests voor
+  herkenning, vlaggen, BIV, planning, opnieuw proberen + simulatie van volledige runs op nepdata in een tijdelijke map:
+  niets opgehaald, geen meldingen). Nieuwe regel of bugfix → test erbij.
 - `bronnen/<dealer>.py` – één module per dealersite: `NAAM` + `fetch(get)` → lijst auto-dicts (zelfde velden als in tracker.py). Nieuwe dealer = nieuw bestand, wordt automatisch opgepikt. Alleen Belgische dealers.
 - Dubbels (zelfde auto op meerdere sites, ook 2x op AutoScout24) worden samengevoegd via `zelfde_auto()`: één kaart, laagste prijs, alle sites in `te_koop_op`.
 - `config.json` – criteria, scoregewichten, BIV-parameters (q/c jaarlijks nakijken, indexatie 1 juli/1 jan)
@@ -57,9 +63,10 @@ het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerd
 - **Vlaggen** (`vlaggen()`): rood (ongeval, schade, hagel, motor/bak, US-import, zonder keuring/export, 5+ eigenaars) en
   groen (PCCB, Sport Chrono, sportuitlaat, PDCC, kuipstoelen, frontlift, achterasbesturing, 1e eigenaar, onderhoudshistoriek).
   AutoScout24: beschrijving + vaste velden (`hadAccident`, `damageConditions`, `originalMarket`, `noOfPreviousOwners`,
-  `hasFullServiceHistory`) van de detailpagina, max. `DETAILS_PER_RUN` nieuwe per run, gecachet in `details` (state.json;
-  regels gewijzigd? → `details` leegmaken). Andere sites: uit hun eigen tekst. Ontkenning vlak ervoor ("kein Unfallschaden")
-  telt niet (`NIET`, alleen spaties ertussen). Score: `rode_vlag`/`groene_vlag` (+ max) in config.json.
+  `hasFullServiceHistory`) van de detailpagina, max. `DETAILS_PER_RUN` nieuwe per run, gecachet per url in `details` (state.json;
+  regels gewijzigd? → `details` leegmaken). `detail()` levert ook `open` voor `echt_open_dak()`: de pagina wordt maar één keer
+  opgehaald. Andere sites: uit hun eigen tekst. Ontkenning vlak ervoor ("kein Unfallschaden", alleen spaties ertussen: `NIET`)
+  of erna ("Vorschäden: keine": `NA`) telt niet. Score: `rode_vlag`/`groene_vlag` (+ max) in config.json.
 - **Opnieuw te koop**: een nieuwe advertentie die via `zelfde_auto()` overeenkomt met een auto uit `verkocht` krijgt het oude id
   (geschiedenis blijft, niet "nieuw"; goedkoper = prijsdalingsmelding). ≥ 2 dagen weg → `opnieuw` (tag op de kaart) en het
   verdwijnen wordt uit `verkoop_historiek` gehaald. `verkocht` bewaart daarvoor model/generatie/jaar/km.
