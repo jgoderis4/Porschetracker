@@ -18,6 +18,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date, datetime, timedelta
@@ -46,10 +47,24 @@ UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124 Safari/537.36")
 
 
-def get(url):
+def get(url, pogingen=3):
+    """Haperingen (time-out, verbinding verbroken, 'te veel verzoeken', serverfout) zijn meestal tijdelijk:
+    na 10 s en 30 s opnieuw proberen. Bij 429 wachten we zo lang als de site vraagt (max. 60 s)."""
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept-Language": "nl-BE,nl;q=0.9"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return r.read().decode("utf-8", "replace")
+    for i in range(pogingen):
+        wacht = (10, 30, 30)[i]
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:  # vóór OSError: HTTPError is er een subklasse van
+            if e.code not in (429, 500, 502, 503, 504) or i == pogingen - 1:
+                raise
+            na = (e.headers.get("Retry-After") or "").strip()
+            wacht = max(wacht, min(60, int(na))) if na.isdigit() else wacht
+        except OSError:  # time-out, connection reset, DNS …
+            if i == pogingen - 1:
+                raise
+        time.sleep(wacht)
 
 
 def to_int(s):
@@ -624,10 +639,14 @@ def markt_punt(cars, markt, vandaag):
 
 
 RUN_UREN = (8, 18)  # vaste momenten; launchd kijkt elke 15 min of er een moment gemist is (zie install.sh)
+HERKANSINGEN = 2      # lukt een site niet, dan 30 min later de hele run opnieuw (max. zo vaak per moment)
 
 
 def run_nodig(state, nu):
-    """Is het laatste vaste moment (08:00 of 18:00) al gedaan? Zo niet, dan inhalen."""
+    """Is het laatste vaste moment (08:00 of 18:00) al gedaan? Zo niet, dan inhalen.
+    Ook ja als er een herkansing gepland staat (een site lukte niet bij de vorige run)."""
+    if state.get("herkansen_om") and nu.isoformat(timespec="minutes") >= state["herkansen_om"]:
+        return True
     momenten = [nu.replace(hour=u, minute=0, second=0, microsecond=0) for u in RUN_UREN]
     voorbij = [m for m in momenten if m <= nu] or [momenten[-1] - timedelta(days=1)]
     return (state.get("laatste_geslaagde_run") or "") < max(voorbij).isoformat(timespec="minutes")
@@ -648,6 +667,8 @@ def internet(pogingen=6, wacht=20):
 
 def main():
     state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {"auto": {}}
+    # eerste run voor een nieuw vast moment: de teller van herkansingen begint opnieuw
+    herkansingen = 0 if not state.get("herkansen_om") and run_nodig(state, datetime.now()) else state.get("herkansingen", 0)
     typecheck = state.get("typecheck", {})
     errors, cars, aantallen, mislukt = [], [], {}, set()
     # volgorde = voorkeur bij dubbels: AutoScout24 heeft de rijkste gegevens (CO2, pk)
@@ -769,7 +790,11 @@ def main():
         c["verkoopsnelheid"] = snelheid.get(f'{c["model"]}|{c["generatie"]}|{"manueel" if c["manueel"] else "pdk"}')
     samenvatting_nu = (date.today().weekday() == CONFIG["samenvatting_dag"] and datetime.now().hour >= 17
                        and state.get("laatste_samenvatting") != now[:10]) or "--samenvatting" in sys.argv
-    state = {"laatste_run": now, "fouten": errors, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
+    # een site lukte niet (ook niet na opnieuw proberen): over 30 min de hele run nog eens
+    herkansingen = herkansingen + 1 if mislukt else 0
+    herkansen_om = ((datetime.now() + timedelta(minutes=30)).isoformat(timespec="minutes")
+                    if mislukt and herkansingen <= HERKANSINGEN else None)
+    state = {"laatste_run": now, "fouten": errors, "herkansingen": herkansingen, "herkansen_om": herkansen_om, "typecheck": typecheck, "bronnen": bron_historiek, "markt": markt,
              "marktstaal": staal, "verkocht": verkocht, "gestart": gestart, "verkoop_historiek": verkoop_historiek[-1000:],
              # minstens één bron gelukt: dit vaste moment is gedaan (anders volgt een nieuwe poging)
              "laatste_geslaagde_run": now if aantallen else state.get("laatste_geslaagde_run"),
@@ -804,7 +829,8 @@ def main():
         if len(nieuw_top) > 5:
             push("Porsche GTS/Turbo tracker", f"… en nog {len(nieuw_top) - 5} andere: zie dashboard")
         melding(f"{len(nieuw_top)} nieuwe interessante auto('s) of prijsdaling:\n\n{regels}{meer}")
-    elif errors and aantallen:  # alles mislukt = geen internet: geen foutmelding, er volgt een nieuwe poging
+    elif errors and aantallen and not herkansen_om:  # pas melden als ook de herkansingen mislukten
+        # (alles mislukt = geen internet: geen foutmelding, er volgt sowieso een nieuwe poging)
         push("Porsche GTS/Turbo tracker: fout bij ophalen", "; ".join(errors)[:300], prioriteit=2)
         melding("Fout bij ophalen: " + "; ".join(errors)[:200], knop_dashboard=False)
 

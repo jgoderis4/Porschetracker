@@ -40,12 +40,15 @@ def fetch(get):
     for x in lijst:
         titel = re.sub(r"\s+", " ", html.unescape(x["title"]["rendered"])).strip()
         tl = (titel + " " + x["slug"]).lower()
-        # enkel 911-familie met gts/turbo; de tracker filtert verder
-        if not re.search(r"911|991|992", tl) or not re.search(r"gts|turbo", tl):
+        # enkel 911 GTS/Turbo, open dak, 997 of nieuwer: de site geeft "429 Too Many Requests"
+        # als we te veel detailpagina's na elkaar ophalen, dus coupés en oudere generaties overslaan
+        if not re.search(r"911|99[127]", tl) or not re.search(r"gts|turbo", tl):
             continue
-        if len(cars) >= 29:  # beleefd blijven: max ~30 verzoeken per run
+        if not re.search(r"cabr|targa", tl) or re.search(r"\b(930|964|993|996)\b", tl):
+            continue
+        if len(cars) >= 15:
             break
-        time.sleep(1)
+        time.sleep(4)
         page = get(x["link"])
         regels = _regels(page)
         # alles vóór de prijs is menu/omschrijving; specs staan erna

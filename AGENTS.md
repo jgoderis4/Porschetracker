@@ -11,6 +11,10 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
 - **Planning**: launchd start `tracker.py --gepland` elke 15 min; `run_nodig()` draait alleen als het laatste vaste moment
   (08:00/18:00, `RUN_UREN`) nog niet gelukt is (`laatste_geslaagde_run` in state.json) en `internet()` werkt.
   Zo wordt een run ingehaald als de Mac sliep of net wakker werd zonder wifi. Alle bronnen mislukt = geen foutmelding, nieuwe poging.
+- **Haperingen**: `get()` probeert een mislukt verzoek opnieuw na 10 s en 30 s (time-out, connection reset, 429/5xx;
+  bij 429 de `Retry-After` van de site, max. 60 s). Mislukt een bron toch, dan zet `main()` een herkansing
+  (`herkansen_om` = +30 min, max. `HERKANSINGEN` = 2 per vast moment) en volgt pas daarna een foutmelding.
+- **AE Cars** geeft 429 bij te veel detailpagina's: voorfilter op titel (cabrio/targa, 997 of nieuwer), 4 s pauze.
 - `install.sh` – kopieert naar `~/Library/Application Support/porsche-tracker` en plant de launchd-taak
   (macOS laat geplande taken niet in ~/Documents). **Na elke wijziging opnieuw `./install.sh` draaien.**
   install.sh herbouwt ook meteen het dashboard met het nieuwe template en de gegevens van de laatste run (`--herbouw-dashboard`).
