@@ -24,7 +24,7 @@ SLOT_FILE = DATA_DIR / "tracker.lock"  # zelfde slot als in tracker.py
 DASHBOARD = DATA_DIR / "dashboard.html"
 LOG = DATA_DIR / "tracker.log"
 PROFIELEN = DATA_DIR / "zoekprofielen.json"
-VELDEN = {"naam": str, "gens": list, "mdl": str, "typ": str, "van": str, "maxp": str, "man": bool, "be": bool}
+VELDEN = {"naam": str, "gens": list, "mdl": str, "typ": str, "van": str, "maxp": str, "man": bool, "be": bool, "kleuren": list}
 POORT = 8911
 # Het dashboard is een lokaal bestand (file://): de browser stuurt dan Origin "null".
 # Andere websites krijgen geen toegang, zodat een willekeurige site geen runs kan starten.

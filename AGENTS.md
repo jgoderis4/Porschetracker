@@ -76,6 +76,11 @@ het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerd
 - **Koopmoment** (dashboard, `koopmoment()`): per kalendermaand de mediaan-vraagprijs t.o.v. het gemiddelde per segment;
   zinvol na ±1 jaar data.
 - **Prijsgrafiekje** op de kaart vanaf 2 prijzen (`priceBlock()`).
+- **Kleur** (`kleur_uit()`, groepen in `KLEUREN`): AutoScout24 uit de link (`...-wit-cat_...`), exacte Porsche-naam
+  (`kleur_naam`, bv. "Carrara White") uit de detailpagina; andere sites uit de titel. Dashboard: kleurknoppen (meerkeuze),
+  bolletje + naam op de kaart, ook in zoekprofielen (`kleuren`).
+- **Filterblok** (dashboard) staat vlak boven de kaarten: knoppen (generatie, kleur) · keuzelijsten · "Alleen"/"Toon ook" ·
+  aantal + "✕ filters wissen" + zoekprofielen. Actieve filters krijgen een gouden rand (`actieveFilters()`).
 
 ## Kost, bod, verkoopsnelheid, samenvatting, vergelijken
 - **Kost per jaar** (`totale_kost()`): afschrijving over `kost_jaren` volgens de waardecurve van het model

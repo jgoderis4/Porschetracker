@@ -131,6 +131,8 @@ def fetch_autoscout_zoek(zoek):
                 "dealer": seller.get("type") == "Dealer",
                 "foto": (l.get("images") or [None])[0],
                 "url": "https://www.autoscout24.be" + l["url"],
+                # de kleur staat in de link: ".../porsche-911-...-benzine-wit-cat_ma57..."
+                "kleur": kleur_uit((re.search(r"-([a-z]+)-cat_", l["url"]) or [None, ""])[1]),
             })
         if page >= pp.get("numberOfPages", 1):
             break
@@ -206,6 +208,22 @@ def bron_bewaking(aantallen, historiek):
 
 
 # ---------------------------------------------------------------- herkennen
+
+
+# Kleurgroepen met de woorden waaraan je ze herkent (NL/DE/EN en Porsche-namen). Volgorde = voorkeur
+# bij twijfel; "gt silver" moet zilver blijven, dus zilver vóór grijs.
+KLEUREN = {"zwart": "zwart schwarz black basalt jet", "wit": "wit weiss weiß white carrara",
+           "zilver": "zilver silber silver rhodium", "grijs": "grijs grau grey gray achat agate kreide chalk krijt crayon slate",
+           "blauw": "blauw blau blue gentian enzian miami aqua saphir sapphire yachting", "rood": "rood rot red guards indischrot karmin carmine",
+           "groen": "groen grün green python brewster", "geel": "geel gelb yellow", "oranje": "oranje orange lava",
+           "bruin": "bruin braun brown mahagoni macadamia", "beige": "beige", "goud": "goud gold", "paars": "paars violett purple viola"}
+
+
+def kleur_uit(tekst):
+    """Eerste kleurwoord in de tekst → kleurgroep (bv. 'Lava Orange' → 'oranje'), anders None."""
+    treffers = [(m.start(), groep) for groep, woorden in KLEUREN.items()
+                for m in [re.search(r"\b(" + "|".join(woorden.split()) + r")", (tekst or "").lower())] if m]
+    return min(treffers)[1] if treffers else None
 
 
 def zelfde_auto(a, b):
@@ -348,7 +366,9 @@ def as_detailpagina(car):
     ld = json.loads(m.group(1))["props"]["pageProps"]["listingDetails"]
     tekst = re.sub(r"<[^>]+>", " ", ld.get("description") or "").lower()
     time.sleep(1.5)  # beleefd blijven
-    return {"open": bool(OPEN_DAK.search(tekst)), **vlaggen(car["titel"].lower() + " " + tekst, ld.get("vehicle"))}
+    v = ld.get("vehicle") or {}
+    return {"open": bool(OPEN_DAK.search(tekst)), **vlaggen(car["titel"].lower() + " " + tekst, v),
+            "kleur": kleur_uit(v.get("bodyColor") or v.get("bodyColorOriginal")), "kleur_naam": v.get("bodyColorOriginal")}
 
 
 def detail(car, cache):
@@ -654,7 +674,7 @@ def past_bij(c, p):
     return ((not p.get("gens") or c["generatie"] in p["gens"]) and (not p.get("mdl") or c["model"] == p["mdl"])
             and (not p.get("typ") or c["type"] == p["typ"]) and (not p.get("van") or (c["jaar"] or 0) >= int(p["van"]))
             and (not p.get("maxp") or c["prijs"] <= int(p["maxp"])) and (not p.get("man") or c["manueel"])
-            and (not p.get("be") or c["land"] == "BE"))
+            and (not p.get("be") or c["land"] == "BE") and (not p.get("kleuren") or c.get("kleur") in p["kleuren"]))
 
 
 def melding(msg, knop_dashboard=True):
@@ -830,6 +850,7 @@ def filteren(cars, typecheck, details):
         if c["bron"] == "AutoScout24" and not echt_open_dak(c, typecheck, details):
             continue
         c["te_koop_op"] = [{"bron": c["bron"], "url": c["url"], "prijs": c["prijs"]}]
+        c["kleur"] = c.get("kleur") or kleur_uit(c["titel"])
         c["type"] = "Targa" if "targa" in t or "targa" in c.get("_tekst", "") else "Cabrio"
         c["biv"], c["co2_gebruikt"], c["leeftijd_jr"] = biv(c)
         uniek.append(c)
@@ -918,6 +939,9 @@ def vlaggen_zetten(uniek, details):
                     pass  # volgende run opnieuw
             d = details.get(c["url"])
             c["vlaggen"] = {"rood": d["rood"], "groen": d["groen"]} if d else None  # None = nog niet bekeken
+            if d:  # exacte Porsche-kleurnaam (bv. "Carrara White"); groep uit de link als die er niet was
+                c["kleur"] = c.get("kleur") or d.get("kleur")
+                c["kleur_naam"] = d.get("kleur_naam")
         else:
             c["vlaggen"] = vlaggen((c["titel"] + " " + c.get("_tekst", "")).lower())
     return {u: d for u, d in details.items() if u in {c["url"] for c in uniek}}

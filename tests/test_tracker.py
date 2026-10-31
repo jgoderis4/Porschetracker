@@ -82,6 +82,14 @@ class Vlaggen(unittest.TestCase):
         self.assertEqual(t.vlaggen("", {"originalMarket": "Duitsland", "noOfPreviousOwners": 1})["groen"], ["1e eigenaar"])
 
 
+class Kleur(unittest.TestCase):
+    def test_kleur_uit(self):
+        for tekst, groep in [("wit", "wit"), ("Lava Orange", "oranje"), ("GT Silver Metallic", "zilver"),
+                             ("Kreide", "grijs"), ("Carrara White, Leder schwarz", "wit"), ("benzine", None), ("", None),
+                             ("Racing Yellow", "geel"), ("Basaltschwarz", "zwart"), ("Guards Red", "rood")]:
+            self.assertEqual(t.kleur_uit(tekst), groep, tekst)
+
+
 class Berekeningen(unittest.TestCase):
     def test_biv_daalt_met_leeftijd(self):
         c = {"model": "GTS", "generatie": "991.2", "manueel": False, "co2": None, "jaar": datetime.now().year - 1, "maand": 1}
@@ -97,6 +105,8 @@ class Berekeningen(unittest.TestCase):
         self.assertFalse(t.past_bij(dict(c, manueel=False), p))
         self.assertFalse(t.past_bij(dict(c, prijs=95000), p))
         self.assertFalse(t.past_bij(c, dict(p, be=True)))
+        self.assertTrue(t.past_bij(dict(c, kleur="wit"), dict(p, kleuren=["wit", "grijs"])))
+        self.assertFalse(t.past_bij(dict(c, kleur="zwart"), dict(p, kleuren=["wit", "grijs"])))
 
 
 class Planning(unittest.TestCase):

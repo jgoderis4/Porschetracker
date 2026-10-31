@@ -23,8 +23,19 @@
   h1 { font-size: 24px; margin: 0 0 4px; }
   .sub { color: var(--muted); font-size: 13px; }
   .err { background: #fdecea; color: #8a1c14; padding: 8px 12px; border-radius: 8px; margin-top: 12px; font-size: 13px; }
-  .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 20px 0 16px;
+  .bar { display: flex; flex-direction: column; gap: 10px; margin: 20px 0 16px;
          padding: 12px 14px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+  .bar .rij { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  .bar .rij + .rij { padding-top: 10px; border-top: 1px solid var(--line); }
+  .bar .kopje { color: var(--muted); font-size: 13px; }
+  .bar label.actief { color: var(--accent); font-weight: 600; }
+  .bar label.actief select { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  #wis { font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
+         border: 1px solid var(--accent); background: transparent; color: var(--accent); }
+  .gens i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px;
+            border: 1px solid rgba(128,128,128,.6); }
+  .facts i.kl { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px;
+                border: 1px solid rgba(128,128,128,.6); }
   .bar label { display: flex; gap: 6px; align-items: center; font-size: 14px; cursor: pointer; }
   .gens { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 14px; }
   .gens span { margin-right: 2px; }
@@ -34,7 +45,7 @@
   .gens button small { opacity: .7; }
   .bar select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line);
                 background: var(--card); color: var(--text); }
-  .count { margin-left: auto; color: var(--muted); font-size: 13px; }
+  .count { color: var(--muted); font-size: 13px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 14px; }
   .car { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
          display: flex; flex-direction: column; text-decoration: none; color: inherit; transition: transform .12s; }
@@ -49,7 +60,8 @@
   .tag.drop { background: var(--good); }
   .tag.nu { background: #d92d20; }
   .gezakt { background: var(--card); border: 2px solid var(--good); padding: 8px 12px; border-radius: 8px; margin-top: 12px; font-size: 13px; }
-  .gezakt b { color: var(--good); }
+  .gezakt b, .gezakt summary { color: var(--good); }
+  .gezakt summary { cursor: pointer; font-weight: 700; }
   .gezakt ul { margin: 6px 0 0; padding-left: 18px; }
   .gezakt a { color: inherit; }
   .car.flits { outline: 3px solid #d92d20; outline-offset: 2px; }
@@ -63,7 +75,7 @@
   .vlaggen .groen { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
   .vlaggen .grijs { color: var(--muted); border-color: var(--line); }
   .spark { vertical-align: middle; margin-left: 6px; }
-  #profielen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -6px 0 14px; font-size: 13px; }
+  #profielen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto; font-size: 13px; }
   #profielen button { font: inherit; font-size: 13px; padding: 3px 10px; border-radius: 999px; cursor: pointer;
                       border: 1px solid var(--line); background: var(--card); color: var(--text); }
   #profielen button.del { padding: 3px 7px; margin-left: -4px; color: var(--muted); }
@@ -166,49 +178,6 @@
   <div id="gezakt"></div>
   <div id="weg"></div>
 
-  <div class="bar">
-    <div class="gens" id="gen" title="Klik één of meer generaties aan; niets aangeklikt = alle">
-      <span>Generatie</span><button type="button" data-g="997.1" aria-pressed="false">997.1</button><button type="button" data-g="997.2" aria-pressed="false">997.2</button><button type="button" data-g="991.1" aria-pressed="false">991.1</button><button type="button" data-g="991.2" aria-pressed="false">991.2</button><button type="button" data-g="992" aria-pressed="false">992</button>
-    </div>
-    <label>Vanaf bouwjaar
-      <select id="van"><option value="">Alle</option></select>
-    </label>
-    <label>Max prijs
-      <select id="maxp"><option value="">Alle</option></select>
-    </label>
-    <label>Model
-      <select id="mdl"><option value="">Alle</option><option>GTS</option><option>Turbo</option><option>Turbo S</option></select>
-    </label>
-    <label>Type
-      <select id="typ"><option value="">Alle</option><option>Cabrio</option><option>Targa</option></select>
-    </label>
-    <label>Sorteer
-      <select id="sort">
-        <option value="score">Score (hoog → laag)</option>
-        <option value="prijs_op">Prijs (laag → hoog)</option>
-        <option value="prijs_af">Prijs (hoog → laag)</option>
-        <option value="deal">Grootste korting t.o.v. markt (%)</option>
-        <option value="deal_eur">Grootste korting t.o.v. markt (€)</option>
-        <option value="recent_d">Recentste prijsdaling</option>
-        <option value="daling">Grootste prijsdaling</option>
-        <option value="km">Kilometers (laag → hoog)</option>
-        <option value="jaar">Bouwjaar (nieuw → oud)</option>
-        <option value="biv">BIV (laag → hoog)</option>
-        <option value="allin">All-in prijs (laag → hoog)</option>
-        <option value="online">Langst te koop</option>
-        <option value="nieuwst">Nieuwste advertentie</option>
-        <option value="kost">Laagste kost per jaar</option>
-      </select>
-    </label>
-    <label><input type="checkbox" id="man"> Alleen manueel</label>
-    <label><input type="checkbox" id="drop"> Alleen prijsdalingen</label>
-    <label><input type="checkbox" id="be"> Alleen België</label>
-    <label><input type="checkbox" id="nw"> Alleen nieuw</label>
-    <label><input type="checkbox" id="biv"> Toon ook BIV boven max</label>
-    <label><input type="checkbox" id="fav"> Alleen favorieten</label>
-    <label><input type="checkbox" id="verb"> Toon verborgen</label>
-    <span class="count" id="count"></span>
-  </div>
 
   <details class="legend">
     <summary>Uitleg: verschil per generatie en per bouwjaar</summary>
@@ -265,7 +234,62 @@
       De laatste periode loopt nog en kan dus nog bewegen.</p>
   </details>
 
-  <div id="profielen"></div>
+  <div class="bar" id="filters">
+    <div class="rij">
+      <div class="gens" id="gen" title="Klik één of meer generaties aan; niets aangeklikt = alle">
+      <span>Generatie</span><button type="button" data-g="997.1" aria-pressed="false">997.1</button><button type="button" data-g="997.2" aria-pressed="false">997.2</button><button type="button" data-g="991.1" aria-pressed="false">991.1</button><button type="button" data-g="991.2" aria-pressed="false">991.2</button><button type="button" data-g="992" aria-pressed="false">992</button>
+    </div>
+      <div class="gens" id="kleur" title="Klik één of meer kleuren aan; niets aangeklikt = alle"><span>Kleur</span></div>
+    </div>
+    <div class="rij">
+      <label>Model
+        <select id="mdl"><option value="">Alle</option><option>GTS</option><option>Turbo</option><option>Turbo S</option></select>
+      </label>
+      <label>Type
+        <select id="typ"><option value="">Alle</option><option>Cabrio</option><option>Targa</option></select>
+      </label>
+      <label>Vanaf bouwjaar
+        <select id="van"><option value="">Alle</option></select>
+      </label>
+      <label>Max prijs
+        <select id="maxp"><option value="">Alle</option></select>
+      </label>
+      <label>Sorteer
+      <select id="sort">
+        <option value="score">Score (hoog → laag)</option>
+        <option value="prijs_op">Prijs (laag → hoog)</option>
+        <option value="prijs_af">Prijs (hoog → laag)</option>
+        <option value="deal">Grootste korting t.o.v. markt (%)</option>
+        <option value="deal_eur">Grootste korting t.o.v. markt (€)</option>
+        <option value="recent_d">Recentste prijsdaling</option>
+        <option value="daling">Grootste prijsdaling</option>
+        <option value="km">Kilometers (laag → hoog)</option>
+        <option value="jaar">Bouwjaar (nieuw → oud)</option>
+        <option value="biv">BIV (laag → hoog)</option>
+        <option value="allin">All-in prijs (laag → hoog)</option>
+        <option value="online">Langst te koop</option>
+        <option value="nieuwst">Nieuwste advertentie</option>
+        <option value="kost">Laagste kost per jaar</option>
+      </select>
+    </label>
+    </div>
+    <div class="rij">
+      <span class="kopje">Alleen:</span>
+      <label><input type="checkbox" id="man"> Manueel</label>
+      <label><input type="checkbox" id="be"> België</label>
+      <label><input type="checkbox" id="drop"> Prijsdalingen</label>
+      <label><input type="checkbox" id="nw"> Nieuw</label>
+      <label><input type="checkbox" id="fav"> Favorieten</label>
+      <span class="kopje" style="margin-left:12px">Toon ook:</span>
+      <label><input type="checkbox" id="biv"> BIV boven max</label>
+      <label><input type="checkbox" id="verb"> Verborgen</label>
+    </div>
+    <div class="rij">
+      <span class="count" id="count"></span>
+      <button type="button" id="wis" hidden></button>
+      <div id="profielen"></div>
+    </div>
+  </div>
   <div class="grid" id="grid"></div>
   <div id="vglbar"></div>
 
@@ -293,14 +317,21 @@ const PREF_KEY = "porsche-filters";
 
 // Generatiefilter: meerdere tegelijk aan te klikken; leeg = alle generaties
 const GEN_SEL = new Set();
+// Kleurfilter werkt net zo (kleurgroepen uit KLEUREN in tracker.py); de bolletjes zijn benaderend
+const KLEUR_SEL = new Set();
+const KLEURCODE = {zwart: "#111", wit: "#f4f4f2", zilver: "#c0c4c8", grijs: "#7d8084", blauw: "#2a5db0", rood: "#c4161c",
+                   groen: "#2f6b3a", geel: "#f2c200", oranje: "#e8661c", bruin: "#6b4226", beige: "#d8c7a3", goud: "#c9a227", paars: "#6a3d9a"};
+const bol = (k, cls = "") => `<i class="${cls}" style="background:${KLEURCODE[k] || "transparent"}"></i>`;
 function genKnoppen() {
   for (const b of $("gen").querySelectorAll("button")) b.setAttribute("aria-pressed", GEN_SEL.has(b.dataset.g));
+  for (const b of $("kleur").querySelectorAll("button")) b.setAttribute("aria-pressed", KLEUR_SEL.has(b.dataset.k));
 }
 function loadPrefs() {
   try { const p = JSON.parse(localStorage.getItem(PREF_KEY) || "{}");
         for (const k of CHECKS) if (k in p) $(k).checked = p[k];
         // vroeger één generatie (tekst), nu een lijst
         for (const g of [].concat(p.gen || [])) if (g) GEN_SEL.add(g);
+        for (const k of p.kleur || []) KLEUR_SEL.add(k);
         genKnoppen();
         if (p.sort) $("sort").value = p.sort;
         if (p.typ) $("typ").value = p.typ;
@@ -309,7 +340,7 @@ function loadPrefs() {
         if (p.maxp) $("maxp").value = p.maxp; } catch (e) {}
 }
 function savePrefs() {
-  const p = {gen: [...GEN_SEL], sort: $("sort").value, typ: $("typ").value, mdl: $("mdl").value,
+  const p = {gen: [...GEN_SEL], kleur: [...KLEUR_SEL], sort: $("sort").value, typ: $("typ").value, mdl: $("mdl").value,
              van: $("van").value, maxp: $("maxp").value};
   for (const k of CHECKS) p[k] = $(k).checked;
   try { localStorage.setItem(PREF_KEY, JSON.stringify(p)); } catch (e) {}
@@ -388,10 +419,10 @@ function recenteDaling(c) {
 function gezaktBlok() {
   const lijst = DATA.autos.map(c => [c, recenteDaling(c)]).filter(([, d]) => d)
     .sort(([, a], [, b]) => b.op.localeCompare(a.op));
-  $("gezakt").innerHTML = lijst.length ? `<div class="gezakt"><b>↓ Prijsdaling in de laatste 7 dagen</b><ul>${lijst.map(([c, d]) =>
+  $("gezakt").innerHTML = lijst.length ? `<details class="gezakt" open><summary>↓ ${lijst.length} prijsdaling${lijst.length === 1 ? "" : "en"} in de laatste 7 dagen</summary><ul>${lijst.map(([c, d]) =>
     `<li><a href="#" data-naar="${esc(c.id)}">${esc(c.model)} ${esc(c.type)} ${esc(c.generatie)} ${c.jaar}, ${c.km.toLocaleString("nl-BE")} km</a>
      · ${fmt(d.van)} → <b>${fmt(d.naar)}</b> (−${fmt(d.van - d.naar)}, −${String(d.pct).replace(".", ",")}%)
-     · ${dmy(d.op)} · score ${c.score}</li>`).join("")}</ul></div>` : "";
+     · ${dmy(d.op)} · score ${c.score}</li>`).join("")}</ul></details>` : "";
 }
 $("gezakt").addEventListener("click", e => {
   const a = e.target.closest("[data-naar]");
@@ -540,10 +571,12 @@ function vlaggenBlock(c) {
 let PROFIELEN = (DATA && DATA.zoekprofielen) || [], KNOP_OK = false;
 const pastBij = (c, p) => (!p.gens?.length || p.gens.includes(c.generatie)) && (!p.mdl || c.model === p.mdl)
   && (!p.typ || c.type === p.typ) && (!p.van || c.jaar >= +p.van) && (!p.maxp || c.prijs <= +p.maxp)
-  && (!p.man || c.manueel) && (!p.be || c.land === "BE");  // zelfde regels als past_bij() in tracker.py
+  && (!p.man || c.manueel) && (!p.be || c.land === "BE")
+  && (!p.kleuren?.length || p.kleuren.includes(c.kleur));  // zelfde regels als past_bij() in tracker.py
 function huidigeFilters() {
   const p = {};
   if (GEN_SEL.size) p.gens = [...GEN_SEL];
+  if (KLEUR_SEL.size) p.kleuren = [...KLEUR_SEL];
   for (const k of ["mdl", "typ", "van", "maxp"]) if ($(k).value) p[k] = $(k).value;
   if ($("man").checked) p.man = true;
   if ($("be").checked) p.be = true;
@@ -568,7 +601,8 @@ document.addEventListener("click", async e => {
   try {
     if (b.dataset.p !== undefined) {  // toepassen
       const p = PROFIELEN[+b.dataset.p];
-      GEN_SEL.clear(); (p.gens || []).forEach(g => GEN_SEL.add(g)); genKnoppen();
+      GEN_SEL.clear(); (p.gens || []).forEach(g => GEN_SEL.add(g));
+      KLEUR_SEL.clear(); (p.kleuren || []).forEach(k => KLEUR_SEL.add(k)); genKnoppen();
       for (const k of ["mdl", "typ", "van", "maxp"]) $(k).value = p[k] || "";
       $("man").checked = !!p.man; $("be").checked = !!p.be;
       render();
@@ -577,7 +611,7 @@ document.addEventListener("click", async e => {
       if (confirm(`Zoekprofiel "${p.naam}" verwijderen?`)) await profielenOpslaan(PROFIELEN.filter(x => x !== p));
     } else if (b.dataset.bewaar !== undefined) {
       const p = huidigeFilters();
-      if (!Object.keys(p).length) return alert("Kies eerst een paar filters (generatie, model, type, bouwjaar, max prijs, manueel of België).");
+      if (!Object.keys(p).length) return alert("Kies eerst een paar filters (generatie, kleur, model, type, bouwjaar, max prijs, manueel of België).");
       const naam = prompt("Naam voor dit zoekprofiel (bv. 'Manuele 997 GTS'):");
       if (!naam || !naam.trim()) return;
       await profielenOpslaan([...PROFIELEN, { naam: naam.trim().slice(0, 40), ...p }]);
@@ -789,11 +823,22 @@ function waardeGrafiek() {
 
 function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
+// Welke filters staan aan? Goud omkaderd, met een knop om ze allemaal te wissen (sorteren telt niet mee).
+const FILTER_SELECTS = ["mdl", "typ", "van", "maxp"];
+function actieveFilters() {
+  let n = (GEN_SEL.size ? 1 : 0) + (KLEUR_SEL.size ? 1 : 0);
+  for (const id of FILTER_SELECTS) { const aan = !!$(id).value; $(id).closest("label").classList.toggle("actief", aan); n += aan; }
+  for (const id of CHECKS) { const aan = $(id).checked; $(id).closest("label").classList.toggle("actief", aan); n += aan; }
+  $("wis").hidden = !n;
+  $("wis").textContent = `✕ ${n} filter${n === 1 ? "" : "s"} wissen`;
+}
 function render() {
   savePrefs();
+  actieveFilters();
   const max = DATA.config.max_biv, hi = DATA.config.melding_vanaf_score;
   const list = DATA.autos.filter(c =>
     (!GEN_SEL.size || GEN_SEL.has(c.generatie)) &&
+    (!KLEUR_SEL.size || KLEUR_SEL.has(c.kleur)) &&
     (!$("typ").value || (c.type || "Cabrio") === $("typ").value) &&
     (!$("mdl").value || (c.model || "GTS") === $("mdl").value) &&
     (!$("van").value || c.jaar >= +$("van").value) &&
@@ -825,6 +870,7 @@ function render() {
         <div class="facts">
           <span><b>${c.model || "GTS"} ${c.type || "Cabrio"}</b></span><span>${c.generatie}</span><span>${c.maand ? String(c.maand).padStart(2,"0") + "/" : ""}${c.jaar}</span>
           <span>${c.km.toLocaleString("nl-BE")} km</span><span>${c.manueel ? "Manueel" : "PDK"}</span>
+          ${c.kleur ? `<span title="${esc(c.kleur_naam || c.kleur)}">${bol(c.kleur, "kl")}${esc(c.kleur_naam || c.kleur)}</span>` : ""}
           <span class="${c.biv > max ? "biv-over" : ""}">BIV ≈ ${fmt(c.biv)}</span><span>${esc(c.land)}</span>
           <span class="online ${c.dagen_online >= DATA.config.score.lang_online_dagen ? "lang" : ""}"
                 title="Sinds de tracker de advertentie zag">${c.dagen_online ? c.dagen_online + " d te koop" : "vandaag gezien"}</span>
@@ -940,9 +986,27 @@ if (!DATA) {
     genKnoppen();
     render();
   });
+  // kleurknoppen: alleen kleuren die voorkomen, meest voorkomende eerst
+  const kleuren = Object.entries(DATA.autos.reduce((n, c) => (c.kleur && (n[c.kleur] = (n[c.kleur] || 0) + 1), n), {}))
+    .sort((a, b) => b[1] - a[1]);
+  $("kleur").innerHTML += kleuren.map(([k, n]) => `<button type="button" data-k="${k}" aria-pressed="false">${bol(k)}${k} <small>${n}</small></button>`).join("");
+  genKnoppen();
+  $("kleur").addEventListener("click", e => {
+    const b = e.target.closest("button[data-k]");
+    if (!b) return;
+    KLEUR_SEL.has(b.dataset.k) ? KLEUR_SEL.delete(b.dataset.k) : KLEUR_SEL.add(b.dataset.k);
+    genKnoppen();
+    render();
+  });
   for (const b of $("gen").querySelectorAll("button"))  // aantal auto's per generatie
     b.innerHTML = `${b.dataset.g} <small>${DATA.autos.filter(c => c.generatie === b.dataset.g).length}</small>`;
   ["van","maxp","mdl","typ","sort",...CHECKS].forEach(id => $(id).addEventListener("change", render));
+  $("wis").addEventListener("click", () => {
+    GEN_SEL.clear(); KLEUR_SEL.clear(); genKnoppen();
+    for (const id of FILTER_SELECTS) $(id).value = "";
+    for (const id of CHECKS) $(id).checked = false;
+    render();
+  });
   render();
 }
 </script>
