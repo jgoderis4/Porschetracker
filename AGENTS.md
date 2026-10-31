@@ -87,4 +87,7 @@ Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.
 - `waardecurve()` past per model r(a) = f + (1-f)·e^(-k·a) toe (restwaarde t.o.v. `nieuwprijs` × `opties_factor`),
   ijkt per generatie op de mediaan van vandaag en geeft verloop sinds nieuw + prognose 5 jaar (band: k×1.4/f×0.9 tot k×0.6/f×1.1).
   Het verloop is afgeleid uit prijzen per leeftijd vandaag (cross-sectioneel), niet uit echte historische prijzen.
+- **Per type (Cabrio/Targa)**: marktstaal bewaart `punten` (alle types, daarop rust de curve) en `punten_type`; `waardecurve()`
+  geeft extra reeksen met `type` (zelfde curve per model, eigen ijking). `markt_punt()` bewaart ook `model|gen|type`
+  (sinds 31/10/2026), `verkoopsnelheid()` ook `type|model|gen(|bak)`. Dashboard: keuzelijst "Type" in Marktevolutie.
 - Verborgen auto's (dashboard, localStorage) komen vanzelf terug als hun prijs lager is dan bij het verbergen (`verborgen_prijs`).

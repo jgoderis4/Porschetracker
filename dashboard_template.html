@@ -222,6 +222,8 @@
     <summary>Marktevolutie: waardeverloop sinds nieuw, prognose en vraagprijs per dag</summary>
     <label style="display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:14px">Model
       <select id="mmodel"><option>GTS</option><option>Turbo</option><option>Turbo S</option></select></label>
+    <label style="display:inline-flex;gap:6px;align-items:center;margin:12px 0 0 12px;font-size:14px">Type
+      <select id="mtype"><option value="">Cabrio + Targa</option><option>Cabrio</option><option>Targa</option></select></label>
 
     <h3>Waardeverloop sinds nieuw en prognose voor 5 jaar</h3>
     <div class="keys" id="wkeys"></div>
@@ -477,12 +479,15 @@ function vergelijkTabel() {
 
 // Na hoeveel dagen verdwijnen auto's (verkocht of offline gehaald), per model en generatie
 function snelheidTabel() {
-  const s = DATA.verkoopsnelheid || {}, rijen = Object.entries(s).filter(([k]) => k.split("|").length === 2);
+  // sleutels: "GTS|991.2" (alle types) of "Targa|GTS|991.2" (per type), met "|manueel"/"|pdk" erachter per bak
+  const typ = $("mtype").value, pre = typ ? typ + "|" : "", s = DATA.verkoopsnelheid || {};
+  const rijen = Object.entries(s).filter(([k]) => k.startsWith(pre) && k.split("|").length === (typ ? 3 : 2))
+    .map(([k, v]) => [k.slice(pre.length), v, k]);
   $("snote").textContent = `Telt alleen auto's die de tracker zag verschijnen én verdwijnen (sinds ${dmy(DATA.gestart || DATA.bijgewerkt)}); `
     + "wat er al stond bij de start telt niet mee. Hoe langer de tracker draait, hoe betrouwbaarder.";
-  if (!rijen.length) { $("stabel").innerHTML = '<tr><td class="note">Nog geen verkochte auto\'s gezien. Kom over een paar weken terug.</td></tr>'; return; }
-  $("stabel").innerHTML = "<tr><th>Model</th><th>Mediaan</th><th>Manueel</th><th>PDK</th><th>Aantal</th></tr>" + rijen.map(([k, v]) => {
-    const bak = b => s[`${k}|${b}`] ? `${s[`${k}|${b}`].mediaan} d (${s[`${k}|${b}`].aantal})` : "–";
+  if (!rijen.length) { $("stabel").innerHTML = `<tr><td class="note">Nog geen verkochte ${typ ? typ.toLowerCase() + "'s" : "auto's"} gezien. Kom over een paar weken terug.</td></tr>`; return; }
+  $("stabel").innerHTML = "<tr><th>Model</th><th>Mediaan</th><th>Manueel</th><th>PDK</th><th>Aantal</th></tr>" + rijen.map(([k, v, vol]) => {
+    const bak = b => s[`${vol}|${b}`] ? `${s[`${vol}|${b}`].mediaan} d (${s[`${vol}|${b}`].aantal})` : "–";
     return `<tr><td>${k.replace("|", " ")}</td><td>${v.mediaan} d</td><td>${bak("manueel")}</td><td>${bak("pdk")}</td><td>${v.aantal}</td></tr>`;
   }).join("");
 }
@@ -537,16 +542,16 @@ function perPeriode(markt) {
 }
 
 function marktGrafiek() {
-  const markt = perPeriode(DATA.markt || []), mdl = $("mmodel").value;
+  const markt = perPeriode(DATA.markt || []), mdl = $("mmodel").value, typ = $("mtype").value;
   const reeks = GENS.map(([g, kleur]) => ({g, kleur, punten: markt
-    .map(m => ({datum: m.datum, ...(m.segmenten[mdl + "|" + g] || {})}))
+    .map(m => ({datum: m.datum, ...(m.segmenten[mdl + "|" + g + (typ ? "|" + typ : "")] || {})}))
     .filter(p => p.mediaan)})).filter(r => r.punten.length);
   $("mkeys").innerHTML = reeks.map(r => `<span><i style="background:var(${r.kleur})"></i>${r.g}</span>`).join("");
   const laatste = reeks.map(r => ({r, p: r.punten[r.punten.length - 1], p0: r.punten[0]}));
   $("mtabel").innerHTML = laatste.length ? `<tr><th>Generatie</th><th>Mediaan nu</th><th>Aantal te koop</th><th>Sinds ${dmy(markt[0].datum)}</th></tr>` +
     laatste.map(({r, p, p0}) => `<tr><td>${r.g}</td><td>${fmt(p.mediaan)}</td><td>${p.aantal}</td>
       <td>${p.mediaan === p0.mediaan ? "–" : (p.mediaan < p0.mediaan ? "↓ " : "↑ ") + fmt(Math.abs(p.mediaan - p0.mediaan))}</td></tr>`).join("") : "";
-  if (!reeks.length) { $("mchart").innerHTML = `<div class="empty">Nog geen ${mdl} te koop in de lijst.</div>`; return; }
+  if (!reeks.length) { $("mchart").innerHTML = `<div class="empty">Nog geen ${mdl}${typ ? " " + typ : ""} te koop in de lijst${typ ? " (per type bijgehouden sinds 31/10/2026)" : ""}.</div>`; return; }
 
   const W = 760, H = 260, L = 52, R = 70, T = 14, B = 26;
   const datums = [...new Set(reeks.flatMap(r => r.punten.map(p => p.datum)))].sort();
@@ -589,11 +594,12 @@ function marktGrafiek() {
 // Waardecurve: per generatie het geschatte verloop van een representatieve auto sinds nieuw (lijn),
 // de mediaan van vandaag (punt) en een prognose voor 5 jaar (stippellijn + band laag–hoog)
 function waardeGrafiek() {
-  const wc = DATA.waardecurve, mdl = $("mmodel").value;
-  const reeks = wc ? GENS.map(([g, kleur]) => ({kleur, ...wc.reeksen.find(r => r.model === mdl && r.generatie === g)}))
+  const wc = DATA.waardecurve, mdl = $("mmodel").value, typ = $("mtype").value || null;
+  const reeks = wc ? GENS.map(([g, kleur]) => ({kleur, ...wc.reeksen.find(r => r.model === mdl && r.generatie === g && (r.type ?? null) === typ)}))
     .filter(r => r.verleden) : [];
   if (!reeks.length) {
-    $("wchart").innerHTML = `<div class="empty">Nog geen marktstaal: verschijnt na de volgende run.</div>`;
+    $("wchart").innerHTML = `<div class="empty">${typ ? `Geen of te weinig ${mdl} ${typ}'s in het marktstaal${mdl.startsWith("Turbo") && typ === "Targa" ? " (een Turbo Targa bestaat niet in 997–992.1)" : ""}.`
+      : "Nog geen marktstaal: verschijnt na de volgende run."}</div>`;
     $("wkeys").innerHTML = $("wtabel").innerHTML = $("wnote").innerHTML = "";
     return;
   }
@@ -606,8 +612,9 @@ function waardeGrafiek() {
     return `<tr><td><b>${r.generatie}</b></td><td>${fmt(r.nieuwprijs)}</td><td>${fmt(r.nu)}</td><td>${r.behouden_pct}%</td>
       <td style="white-space:nowrap">${fmt(t[2])}<br><span class="sub2">${fmt(Math.min(t[1], t[3]))} – ${fmt(Math.max(t[1], t[3]))}</span></td><td>${perJaar >= 0 ? "−" : "+"}${Math.abs(perJaar).toFixed(1)}%</td><td>${r.aantal}</td></tr>`;
   }).join("");
-  $("wnote").innerHTML = `Gebaseerd op ${reeks.reduce((s, r) => s + r.aantal, 0)} ${mdl}-advertenties op AutoScout24 (staal van ${dmy(wc.datum)}, zonder prijs- of km-filter).
+  $("wnote").innerHTML = `Gebaseerd op ${reeks.reduce((s, r) => s + r.aantal, 0)} ${mdl}${typ ? " " + typ : ""}-advertenties op AutoScout24 (staal van ${dmy(wc.datum)}, zonder prijs- of km-filter).
     Nieuwprijs = Duitse catalogusprijs bij lancering × ${wc.opties_factor} voor opties (aan te passen in config.json).
+    ${typ === "Targa" ? "<b>Let op:</b> de nieuwprijs is die van de Cabrio; een Targa 4 GTS was nieuw iets duurder (4×4), dus het echte % behouden ligt wat lager." : ""}
     De lijn is een <b>schatting</b>: afgeleid uit wat auto's van verschillende leeftijden vandaag kosten, niet uit echte prijzen van vroeger
     — de prijspiek van 2021–2022 zit er dus niet in. De prognose is een <b>indicatie</b>, geen garantie: kilometers, staat, opties en
     de markt bepalen de echte waarde.`;
@@ -791,6 +798,7 @@ if (!DATA) {
   snelheidTabel();
   loadPrefs();
   $("mmodel").addEventListener("change", () => { waardeGrafiek(); marktGrafiek(); });
+  $("mtype").addEventListener("change", () => { waardeGrafiek(); marktGrafiek(); snelheidTabel(); });
   waardeGrafiek();
   marktGrafiek();
   $("gen").addEventListener("click", e => {

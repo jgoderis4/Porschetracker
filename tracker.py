@@ -493,10 +493,15 @@ def marktstaal(oud, vandaag):
                 ids.add(c["id"])
                 c["model"] = model(c)
                 if c["model"]:
-                    groepen.setdefault((c["model"], generatie(c), c["jaar"]), []).append(c["prijs"])
-    punten = [{"model": m, "generatie": g, "jaar": j, "mediaan": sorted(p)[len(p) // 2], "aantal": len(p)}
-              for (m, g, j), p in sorted(groepen.items())]
-    return {"datum": vandaag, "punten": punten}
+                    gen, typ = generatie(c), "Targa" if "targa" in c["titel"].lower() else "Cabrio"
+                    groepen.setdefault((c["model"], gen, None, c["jaar"]), []).append(c["prijs"])
+                    groepen.setdefault((c["model"], gen, typ, c["jaar"]), []).append(c["prijs"])
+    punt = lambda m, g, t, j, p: {"model": m, "generatie": g, "type": t, "jaar": j,
+                                  "mediaan": sorted(p)[len(p) // 2], "aantal": len(p)}
+    # punten = alle types samen (daarop rust de curve); punten_type = apart voor cabrio en targa
+    return {"datum": vandaag,
+            "punten": [punt(m, g, t, j, p) for (m, g, t, j), p in sorted(groepen.items(), key=str) if t is None],
+            "punten_type": [punt(m, g, t, j, p) for (m, g, t, j), p in sorted(groepen.items(), key=str) if t]}
 
 
 def waardecurve(staal):
@@ -507,9 +512,11 @@ def waardecurve(staal):
     nieuw = {m: {g: p * CONFIG["opties_factor"] for g, p in gens.items()} for m, gens in CONFIG["nieuwprijs"].items()}
     nu = date.today()
     nu_x = nu.year + (nu.timetuple().tm_yday - 1) / 365
-    obs = [dict(p, a=nu_x - (p["jaar"] + 0.5), r=p["mediaan"] / nieuw[p["model"]][p["generatie"]])
-           for p in staal["punten"] if nieuw.get(p["model"], {}).get(p["generatie"])]
-    obs = [o for o in obs if o["a"] >= 0.5]
+    def waarnemingen(punten):
+        obs = [dict(p, a=nu_x - (p["jaar"] + 0.5), r=p["mediaan"] / nieuw[p["model"]][p["generatie"]])
+               for p in punten if nieuw.get(p["model"], {}).get(p["generatie"])]
+        return [o for o in obs if o["a"] >= 0.5]
+    obs = waarnemingen(staal["punten"])
     if len(obs) < 4:
         return None
     r = lambda a, f, k: f + (1 - f) * math.exp(-k * a)
@@ -525,9 +532,16 @@ def waardecurve(staal):
         eigen = [o for o in obs if o["model"] == mdl]
         fits[mdl] = fit(eigen) if len(eigen) >= 4 else fits["alle"]
     reeksen = []
-    for (mdl, gen) in sorted({(o["model"], o["generatie"]) for o in obs}):
+    # dezelfde curve per model; per type (cabrio/targa) enkel een eigen ijking op de prijzen van vandaag
+    per_type = waarnemingen(staal.get("punten_type", []))
+    groepen = [(mdl, gen, None, [o for o in obs if o["model"] == mdl and o["generatie"] == gen])
+               for (mdl, gen) in sorted({(o["model"], o["generatie"]) for o in obs})]
+    groepen += [(mdl, gen, typ, [o for o in per_type if (o["model"], o["generatie"], o["type"]) == (mdl, gen, typ)])
+                for (mdl, gen, typ) in sorted({(o["model"], o["generatie"], o["type"]) for o in per_type})]
+    for (mdl, gen, typ, eigen) in groepen:
+        if mdl not in fits or sum(o["aantal"] for o in eigen) < (1 if typ is None else 3):
+            continue
         f, k = fits[mdl]
-        eigen = [o for o in obs if o["model"] == mdl and o["generatie"] == gen]
         n = sum(o["aantal"] for o in eigen)
         ijk = sum(o["aantal"] * o["r"] / r(o["a"], f, k) for o in eigen) / n  # deze generatie doet het beter/slechter
         jaren = sorted(o["jaar"] for o in eigen for _ in range(o["aantal"]))
@@ -543,7 +557,7 @@ def waardecurve(staal):
             schaal = lambda ff, kk: mid0 * r(a, ff, kk) / r(a_nu, ff, kk)
             toekomst.append([round(nu_x + j, 2), round(schaal(f * 0.9, k * 1.4), -2),
                              round(schaal(f, k), -2), round(schaal(min(0.95, f * 1.1), k * 0.6), -2)])
-        reeksen.append({"model": mdl, "generatie": gen, "bouwjaar": bj, "nieuwprijs": p0, "aantal": n,
+        reeksen.append({"model": mdl, "generatie": gen, "type": typ, "bouwjaar": bj, "nieuwprijs": p0, "aantal": n,
                         "nu": round(mid0, -2), "behouden_pct": round(mid0 / p0 * 100),
                         "verleden": verleden, "toekomst": toekomst,
                         "jaren": [{k2: o[k2] for k2 in ("jaar", "mediaan", "aantal")} for o in eigen]})
@@ -603,8 +617,9 @@ def verkoopsnelheid(historiek, gestart):
         if v["eerst_gezien"][:10] <= gestart:
             continue
         bak = "manueel" if v["manueel"] else "pdk"
-        for sleutel in (f'{v["model"]}|{v["generatie"]}', f'{v["model"]}|{v["generatie"]}|{bak}'):
-            groepen.setdefault(sleutel, []).append(v["dagen"])
+        for pre in ("", f'{v.get("type", "Cabrio")}|'):  # alle types samen en per type: "Targa|GTS|991.2"
+            for sleutel in (f'{pre}{v["model"]}|{v["generatie"]}', f'{pre}{v["model"]}|{v["generatie"]}|{bak}'):
+                groepen.setdefault(sleutel, []).append(v["dagen"])
     return {k: {"mediaan": sorted(d)[len(d) // 2], "aantal": len(d)} for k, d in sorted(groepen.items())}
 
 
@@ -620,6 +635,8 @@ def samenvatting(cars, verkocht, markt):
     if oud:
         bewegingen = []
         for seg, nu in markt[-1]["segmenten"].items():
+            if seg.count("|") != 1:  # alleen model|generatie, niet per type
+                continue
             toen = oud["segmenten"].get(seg)
             if toen and nu["aantal"] >= 3 and toen["aantal"] >= 3:
                 bewegingen.append(f"{seg.replace('|', ' ')} {(nu['mediaan'] - toen['mediaan']) / toen['mediaan'] * 100:+.1f}%")
@@ -631,8 +648,9 @@ def samenvatting(cars, verkocht, markt):
 def markt_punt(cars, markt, vandaag):
     """Mediaan-vraagprijs per model + generatie, één punt per dag (laatste run van de dag telt)."""
     groepen = {}
-    for c in cars:
+    for c in cars:  # per model|generatie én per model|generatie|type (Cabrio/Targa, sinds 31/10/2026)
         groepen.setdefault(f'{c["model"]}|{c["generatie"]}', []).append(c["prijs"])
+        groepen.setdefault(f'{c["model"]}|{c["generatie"]}|{c["type"]}', []).append(c["prijs"])
     segmenten = {k: {"mediaan": sorted(v)[len(v) // 2], "aantal": len(v)} for k, v in groepen.items()}
     markt = [m for m in markt if m["datum"] != vandaag]
     return markt + [{"datum": vandaag, "segmenten": segmenten}]
