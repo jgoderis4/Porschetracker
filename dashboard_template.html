@@ -104,7 +104,10 @@
   .facts { display: flex; flex-wrap: wrap; gap: 6px; }
   .facts span { background: var(--chip); border-radius: 6px; padding: 2px 7px; font-size: 12px; }
   .why { color: var(--muted); font-size: 12px; }
-  .foot { margin-top: auto; display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  .foot { margin-top: auto; display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; }
+  .foot span:last-child { white-space: nowrap; }
+  .foot .push { font: inherit; font-size: 12px; background: none; border: 0; padding: 0; color: var(--muted); cursor: pointer; }
+  .foot .push:hover { color: var(--text); text-decoration: underline; }
   .sites { font-size: 12px; display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center; }
   .site { border: 1px solid var(--line); border-radius: 6px; padding: 1px 7px; cursor: pointer; }
   .site:hover { border-color: var(--accent); }
@@ -423,7 +426,7 @@ async function pushAuto(c, knop) {
       message: (opmerking.trim() ? opmerking.trim() + "\n\n" : "") + regel + "\n" + allIn,
       click: c.url, priority: 4, tags: ["red_car", "point_right"]})});
     if (!r.ok) throw new Error(r.status);
-    knop.textContent = "✓"; knop.title = "Gepusht";
+    knop.textContent = "✓ gepusht"; knop.title = "Gepusht";
   } catch (e) {
     knop.textContent = "⚠"; knop.title = "Push mislukt";
     knop.disabled = false;
@@ -1055,12 +1058,11 @@ function render() {
           <button data-act="fav" class="${m.fav ? "on" : ""}" title="${m.fav ? "Geen favoriet meer" : "Favoriet"}">${m.fav ? "★" : "☆"}</button>
           <button data-act="notitie" class="${m.notitie ? "on" : ""}" title="Notitie">✎</button>
           <button data-act="pm" class="${m.plus?.length || m.min?.length ? "on" : ""}" title="Plus- en minpunten">±</button>
-          ${DATA.ntfy_topic ? '<button data-act="push" title="Push naar iedereen die het ntfy-kanaal volgt">📲</button>' : ""}
           <button data-act="vgl" class="${VERGELIJK.includes(c.id) ? "on" : ""}" title="Vergelijk (tot 3 auto's naast elkaar)">⇄</button>
           <button data-act="verborgen" title="${m.verborgen ? "Terugzetten" : "Verbergen"}">${m.verborgen ? "↺" : "✕"}</button>
         </div>
         <div class="foot"><span>${esc(c.bron)} · ${esc(c.verkoper || "")}${c.plaats ? " · " + esc(c.plaats) : ""}</span>
-          <span>sinds ${dmy(c.eerst_gezien)}</span></div>
+          <span>sinds ${dmy(c.eerst_gezien)}${DATA.ntfy_topic ? ' · <button class="push" data-act="push" title="Push naar iedereen die het ntfy-kanaal volgt">📲 push</button>' : ""}</span></div>
       </div>
     </div>`; }).join("") : '<div class="empty">Geen auto\'s die aan deze filters voldoen.</div>';
   vergelijkBalk();
