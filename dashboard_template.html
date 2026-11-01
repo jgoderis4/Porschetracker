@@ -141,6 +141,31 @@
   .vgl-box td { overflow-wrap: anywhere; }
   @media (max-width: 600px) { .vgl-box th { width: 80px; } .vgl-box th, .vgl-box td { padding: 5px 4px; font-size: 12px; } }
   .vgl-box td.best { color: var(--good); font-weight: 700; }
+  .pm-box { max-width: 960px; }
+  .pm-box .vgl-kop a { color: inherit; }
+  .pm-kop2 { color: var(--muted); font-size: 13px; margin: -4px 0 12px; }
+  .pm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .pm-grid { grid-template-columns: 1fr; } }
+  .pm-grid h3 { margin: 0 0 6px; font-size: 15px; }
+  .pm-grid .plus h3 { color: var(--good); }
+  .pm-grid .min h3 { color: var(--bad); }
+  .pm-grid ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .pm-grid li { margin: 3px 0; }
+  .pm-grid li.eigen { font-weight: 600; }
+  .pm-grid li.eigen button { font: inherit; font-size: 12px; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 4px; }
+  .pm-grid input { font: inherit; font-size: 14px; width: 100%; margin-top: 8px; padding: 5px 8px; border-radius: 8px;
+                   border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+  .pm-grid .leeg { color: var(--muted); font-size: 13px; list-style: none; margin-left: -18px; }
+  .pm-grid .w { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 5px; margin-left: 2px; }
+  .pm-oordeel { border-left: 4px solid var(--k); background: var(--bg); border-radius: 8px; padding: 8px 12px; margin-bottom: 14px; }
+  .pm-oordeel b { color: var(--k); font-size: 17px; margin-right: 8px; }
+  .pm-oordeel span { color: var(--muted); font-size: 13px; }
+  .pm-onder { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .pm-onder table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .pm-onder td { padding: 3px 6px 3px 0; vertical-align: top; }
+  .pm-onder tr.aanwezig td:nth-child(2) { color: var(--good); font-weight: 600; }
+  .pm-onder tr.standaard td:nth-child(2) { color: var(--text); }
+  .pm-onder tr.niet-vermeld td:nth-child(2), .pm-onder tr.onbekend td:nth-child(2) { color: var(--muted); }
   .vgl-box img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
   .vgl-kop { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
   .vgl-kop button { font: inherit; background: var(--chip); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 4px 10px; cursor: pointer; }
@@ -376,7 +401,7 @@ function verkochtBlok() {
   const recent = DATA.verkocht.filter(v => Date.parse(DATA.bijgewerkt) - Date.parse(v.weg_sinds) < 14 * 864e5);
   const lijn = v => `<li><a href="${esc(v.url || "#")}" target="_blank" rel="noopener">${esc(v.titel || "(titel onbekend)")}</a> · ${fmt(v.prijs)}
     · verdwenen op ${dmy(v.weg_sinds)}${mijn(v.id).notitie ? ` · <i>${esc(mijn(v.id).notitie)}</i>` : ""}</li>`;
-  const mijne = recent.filter(v => mijn(v.id).fav || mijn(v.id).notitie);
+  const mijne = recent.filter(v => mijn(v.id).fav || mijn(v.id).notitie || mijn(v.id).plus?.length || mijn(v.id).min?.length);
   $("weg").innerHTML = (mijne.length ? `<div class="err">Verkocht of offline gehaald: ${mijne.length === 1 ? "je favoriet" : mijne.length + " van je favorieten"}<ul>${mijne.map(lijn).join("")}</ul></div>` : "")
     + (recent.length ? `<details class="weg"><summary>${recent.length} auto('s) verkocht of offline gehaald in de laatste 14 dagen</summary><ul>${recent.map(lijn).join("")}</ul></details>` : "");
   // favorieten/notities van auto's die al lang weg zijn: opruimen
@@ -494,6 +519,150 @@ function vergelijkBalk() {
   $("vglwis").onclick = () => { VERGELIJK = []; render(); };
   $("vgltoon").onclick = vergelijkTabel;
 }
+// Plus- en minpunten per auto: een eerlijke analyse uit de gegevens (prijs, staat, kosten, opties), met een gewicht per
+// punt zodat het eindoordeel navolgbaar optelt. Eigen punten (MIJN[id].plus / .min, in deze browser) komen erbij.
+// Opties: naam zoals in vlaggen() (tracker.py), gewicht voor de restwaarde, toelichting.
+const OPTIES = [
+  ["Sport Chrono", 2, "gezocht; Sport Response, launch control"],
+  ["sportuitlaat", 2, "de klank wordt bij verkoop vaak gevraagd"],
+  ["frontlift", 1, "praktisch bij opritten en drempels"],
+  ["PCCB", 1, "keramische remmen: sterk, maar duur bij vervanging"],
+  ["kuipstoelen", 1, "gezocht bij liefhebbers, minder comfortabel"],
+  ["achterasbesturing", 1, "wendbaarder en stabieler"],
+  ["PDCC", 0.5, "minder overhellen in bochten"]];
+// Standaard op deze uitvoering (dus geen echte meerwaarde, wel goed om te weten)
+function standaard(c, optie) {
+  const nieuw = ["991.1", "991.2", "992"].includes(c.generatie);
+  if (c.model === "GTS" && nieuw) return ["Sport Chrono", "sportuitlaat"].includes(optie);
+  if (c.model === "Turbo S") return optie === "Sport Chrono" || (nieuw && optie === "PCCB")
+    || (c.generatie.startsWith("991") && optie === "achterasbesturing");
+  if (c.model === "Turbo" && c.generatie.startsWith("991")) return optie === "achterasbesturing";
+  return false;
+}
+function analyse(c) {
+  const plus = [], min = [], opties = [], nakijken = [], cfg = DATA.config;
+  let punten = 0;
+  const pl = (tekst, w) => { plus.push({tekst, w}); punten += w; };
+  const mi = (tekst, w) => { min.push({tekst, w}); punten -= w; };
+  const maxKm = c.generatie.startsWith("997") ? (cfg.max_km_997 || cfg.max_km) : cfg.max_km;
+  const jaren = Math.max(1, (Date.parse(DATA.bijgewerkt) - Date.UTC(c.jaar, (c.maand || 6) - 1)) / 3.156e10);
+  const kmJaar = Math.round(c.km / jaren / 100) * 100, km = n => n.toLocaleString("nl-BE") + " km";
+  // prijs
+  if (c.marktprijs != null && Math.abs(c.deal_pct) >= 3) {
+    const v = Math.abs(c.marktprijs - c.prijs - c.import_kosten), pct = Math.abs(c.deal_pct).toString().replace(".", ",");
+    const w = Math.abs(c.deal_pct) >= 8 ? 3 : Math.abs(c.deal_pct) >= 5 ? 2 : 1;
+    c.deal_pct > 0 ? pl(`${fmt(v)} (${pct}%) onder de geschatte marktprijs`, w) : mi(`${fmt(v)} (${pct}%) boven de geschatte marktprijs`, w);
+  } else if (c.marktprijs != null) pl("Prijs in lijn met de markt", 0);
+  const eerste = c.prijshistoriek[0][1];
+  if (c.prijs < eerste) pl(`Prijs al ${fmt(eerste - c.prijs)} gezakt: de verkoper wil verkopen`, 0.5);
+  if (c.prijs > eerste) mi(`Prijs verhoogd met ${fmt(c.prijs - eerste)}`, 0.5);
+  if (c.dagen_online >= cfg.score.lang_online_dagen) pl(`${c.dagen_online} dagen te koop: ruimte om te onderhandelen`, 0.5);
+  if (c.verkoopsnelheid && c.verkoopsnelheid.aantal >= 3 && c.verkoopsnelheid.mediaan <= 21)
+    mi(`Vergelijkbare auto's zijn na ±${c.verkoopsnelheid.mediaan} dagen weg: weinig tijd om te onderhandelen`, 0);
+  // uitvoering en waardebehoud
+  if (c.manueel) pl("Manuele bak: zeldzaam en gewild, goed voor de restwaarde", 2);
+  else if (c.model === "GTS" && c.generatie !== "992") mi("PDK: bij deze GTS is een manuele gezochter (restwaarde)", 1);
+  if (c.model === "GTS" && ["991.1", "997.2"].includes(c.generatie)) pl(`Atmosferische 3.8 zonder turbo (${c.generatie}): gezocht`, 1);
+  if (c.model === "Turbo" && c.generatie === "997.1") pl("Mezger-motor: betrouwbaar en gewild", 1);
+  if (c.kost) {
+    const afschr = c.kost.afschrijving / c.kost.jaren;
+    if (afschr / c.prijs < 0.02) pl(`Houdt goed zijn waarde: ±${fmt(afschr)} afschrijving per jaar`, 1);
+    else if (afschr / c.prijs > 0.04) mi(`Stevige afschrijving: ±${fmt(afschr)} per jaar`, 1);
+  }
+  // staat en geschiedenis
+  if (c.km <= maxKm * 0.5) pl(`Weinig km: ${km(c.km)} (±${km(kmJaar)} per jaar)`, 1);
+  else if (c.km >= maxKm * 0.8 || kmJaar > 15000) mi(`Veel km: ${km(c.km)} (±${km(kmJaar)} per jaar)`, 1);
+  if (c.waarom.includes("Porsche Approved")) pl("Porsche Approved: garantie en gecontroleerd", 1.5);
+  if (c.waarom.includes("Porsche Centre")) pl("Verkocht door een Porsche Centre (wel minder onderhandelingsruimte)", 0.5);
+  const optieNamen = OPTIES.map(o => o[0]);
+  if (c.vlaggen) {
+    for (const v of c.vlaggen.groen) if (!optieNamen.includes(v)) pl(v === "1e eigenaar" ? "Eerste eigenaar" : v === "onderhoudshistoriek" ? "Volledige onderhoudshistoriek vermeld" : v, 1);
+    for (const v of c.vlaggen.rood) mi(`⚠ ${v}: navragen`, /ongeval|schade|import/.test(v) ? 3 : 2);
+  } else mi("Beschrijving nog niet gelezen: opties en schade nog onbekend", 0);
+  if (c.opnieuw) mi(`Was op ${dmy(c.opnieuw.weg_sinds)} al eens van de markt: vraag waarom`, 0.5);
+  // kosten
+  if (c.land === "BE") pl("Belgische auto: geen importkosten, dichtbij om te bekijken", 1);
+  else mi(`Import uit ${c.land}: ±${fmt(c.import_kosten)} kosten (transport, keuring, COC, platen)`, 0.5);
+  if (c.biv > cfg.max_biv) mi(`BIV ${fmt(c.biv)}: boven je maximum`, 2);
+  else if (c.biv >= 2000) mi(`Hoge BIV: ${fmt(c.biv)}`, 1);
+  else if (c.biv <= 500) pl(`Lage BIV: ${fmt(c.biv)}`, 0.5);
+  if (c.generatie.startsWith("997")) mi(`Oudere techniek (geen CarPlay), meer onderhoud (±${fmt(cfg.onderhoud_per_jaar_997 || cfg.onderhoud_per_jaar)}/jaar)`, 0.5);
+  if (c.bron_offline) mi("De site lag plat bij de laatste run: gegevens van de vorige keer", 0);
+  // opties: aanwezig, standaard of niet vermeld (niet vermeld ≠ niet aanwezig: navragen)
+  let optiePlus = 0;
+  for (const [naam, w, uitleg] of OPTIES) {
+    const std = standaard(c, naam), heeft = c.vlaggen?.groen.includes(naam);
+    const status = std ? "standaard" : heeft ? "aanwezig" : c.vlaggen ? "niet vermeld" : "onbekend";
+    opties.push({naam, uitleg, status, w});
+    if (status === "aanwezig") optiePlus += w / 2;
+    if (status === "niet vermeld" && w >= 2) mi(`${naam} niet vermeld (${uitleg}): navragen`, 0.5);
+  }
+  if (optiePlus) pl(`Gewilde opties: ${opties.filter(o => o.status === "aanwezig").map(o => o.naam).join(", ")}`, Math.min(2, optiePlus));
+  // bij bezichtiging nakijken
+  nakijken.push("Car-Pass (België) of onderhoudsboekje: km-verloop en onderhoud bij Porsche of een specialist",
+                "Pre-purchase inspectie bij een Porsche Centre of specialist (± € 300–500)");
+  nakijken.push(c.type === "Targa" ? "Targa-dak: volledig laten openen en sluiten, geluiden, lekken, rubbers"
+                                   : "Softtop: openen en sluiten, stof en achterruit, lekken, rubbers");
+  if (c.manueel) nakijken.push("Koppeling en vliegwiel: slip of geratel bij stationair (slijtagestuk)");
+  else nakijken.push("PDK: soepel schakelen bij koude motor, onderhoud van de PDK-olie");
+  if (c.generatie === "997.1" && c.model === "Turbo") nakijken.push("Mezger: koelwaterleidingen (gelijmde aansluitingen) nakijken of vervangen");
+  if (c.model !== "GTS") nakijken.push("Turbo's: rook bij koude start, laaddruk, en de staat van de (grote) remmen");
+  if (c.vlaggen?.groen.includes("PCCB") && !standaard(c, "PCCB")) nakijken.push("PCCB: schijven laten meten (vervanging kost duizenden euro)");
+  const oordeel = punten >= 5 ? ["Sterke kandidaat", "--good"] : punten >= 2 ? ["Interessant", "--good"]
+    : punten >= -1 ? ["Twijfelgeval", "--accent"] : ["Eerder afraden", "--bad"];
+  return {plus, min, opties, nakijken, punten, oordeel};
+}
+function plusMinVenster(c) {
+  const gewicht = w => w ? `<span class="w" title="Gewicht in het eindoordeel">${String(w).replace(".", ",")}</span>` : "";
+  const teken = () => {
+    const a = analyse(c), m = mijn(c.id);
+    const lijst = (soort, auto) => {
+      const eigen = (m[soort] || []).map((x, i) => `<li class="eigen">${esc(x)} <button data-weg="${soort}" data-i="${i}" title="Verwijderen">✕</button></li>`);
+      const rest = auto.sort((x, y) => y.w - x.w).map(x => `<li>${esc(x.tekst)} ${gewicht(x.w)}</li>`);
+      return `<ul>${eigen.join("")}${rest.join("") || (eigen.length ? "" : '<li class="leeg">Niets gevonden</li>')}</ul>
+        <input data-nieuw="${soort}" placeholder="+ eigen ${soort === "plus" ? "pluspunt" : "minpunt"} (Enter)" maxlength="120">`;
+    };
+    const status = {aanwezig: "✓ vermeld", standaard: "standaard", "niet vermeld": "niet vermeld", onbekend: "?"};
+    $("pmbody").innerHTML = `
+      <div class="pm-oordeel" style="--k:var(${a.oordeel[1]})"><b>${a.oordeel[0]}</b>
+        <span>${a.plus.length} pluspunten, ${a.min.length} minpunten · saldo ${a.punten > 0 ? "+" : ""}${String(Math.round(a.punten * 10) / 10).replace(".", ",")}
+        (de cijfertjes zijn het gewicht van elk punt; je eigen punten tellen niet mee)</span></div>
+      <div class="pm-grid">
+        <div class="plus"><h3>Pluspunten</h3>${lijst("plus", a.plus)}</div>
+        <div class="min"><h3>Minpunten</h3>${lijst("min", a.min)}</div>
+      </div>
+      <div class="pm-grid pm-onder">
+        <div><h3>Opties</h3><table>${a.opties.map(o => `<tr class="${o.status.replace(" ", "-")}"><td>${o.naam}</td>
+          <td>${status[o.status]}</td><td class="sub2">${o.uitleg}</td></tr>`).join("")}</table>
+          <p class="note">"Niet vermeld" is niet hetzelfde als "niet aanwezig": verkopers zetten niet alles in de advertentie.</p></div>
+        <div><h3>Bij bezichtiging nakijken</h3><ul>${a.nakijken.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
+      </div>`;
+  };
+  document.body.insertAdjacentHTML("beforeend", `<div class="vgl" id="pm"><div class="vgl-box pm-box">
+    <div class="vgl-kop"><b><a href="${esc(c.url)}" target="_blank" rel="noopener">${esc(c.titel)}</a></b><button id="pmsluit">Sluiten</button></div>
+    <div class="pm-kop2">${esc(c.model)} ${esc(c.type)} ${esc(c.generatie)} · ${c.jaar} · ${c.km.toLocaleString("nl-BE")} km · ${fmt(c.prijs)} · score ${c.score}
+      — vetgedrukt = je eigen punten (bewaard in deze browser)</div>
+    <div id="pmbody"></div></div></div>`);
+  teken();
+  const sluit = () => { $("pm")?.remove(); render(); };
+  $("pmsluit").onclick = sluit;
+  $("pm").onclick = e => {
+    if (e.target.id === "pm") return sluit();
+    const b = e.target.closest("[data-weg]");
+    if (b) { zetMijn(c.id, b.dataset.weg, (mijn(c.id)[b.dataset.weg] || []).filter((_, i) => i !== +b.dataset.i)); teken(); }
+  };
+  $("pm").onkeydown = e => {
+    if (e.key === "Escape") return sluit();
+    const inp = e.target.closest("[data-nieuw]");
+    if (e.key !== "Enter" || !inp || !inp.value.trim()) return;
+    const soort = inp.dataset.nieuw;
+    zetMijn(c.id, soort, [...(mijn(c.id)[soort] || []), inp.value.trim()]);
+    teken();
+    $("pmbody").querySelector(`[data-nieuw="${soort}"]`).focus();
+  };
+  $("pmbody").querySelector('[data-nieuw="plus"]').focus();
+}
+
 function vergelijkTabel() {
   const cs = VERGELIJK.map(id => DATA.autos.find(c => c.id === id)).filter(Boolean);
   // rij: label, waarde, en optioneel een getal om de beste te markeren (laag = beter, tenzij hoog)
@@ -526,6 +695,8 @@ function vergelijkTabel() {
       ${rij("Vlaggen", c => c.vlaggen ? esc([...c.vlaggen.rood.map(x => "⚠ " + x), ...c.vlaggen.groen].join(" · ") || "–") : "nog niet bekeken")}
       ${rij("Verkoper", c => esc(c.bron + (c.verkoper ? " · " + c.verkoper : "")))}
       ${rij("Notitie", c => esc(mijn(c.id).notitie || ""))}
+      ${rij("Eigen pluspunten", c => esc((mijn(c.id).plus || []).join(" · ")))}
+      ${rij("Eigen minpunten", c => esc((mijn(c.id).min || []).join(" · ")))}
     </table></div></div>`;
   document.body.insertAdjacentHTML("beforeend", html);
   const sluit = () => $("vgl")?.remove();
@@ -883,6 +1054,7 @@ function render() {
         <div class="acts">
           <button data-act="fav" class="${m.fav ? "on" : ""}" title="${m.fav ? "Geen favoriet meer" : "Favoriet"}">${m.fav ? "★" : "☆"}</button>
           <button data-act="notitie" class="${m.notitie ? "on" : ""}" title="Notitie">✎</button>
+          <button data-act="pm" class="${m.plus?.length || m.min?.length ? "on" : ""}" title="Plus- en minpunten">±</button>
           ${DATA.ntfy_topic ? '<button data-act="push" title="Push naar iedereen die het ntfy-kanaal volgt">📲</button>' : ""}
           <button data-act="vgl" class="${VERGELIJK.includes(c.id) ? "on" : ""}" title="Vergelijk (tot 3 auto's naast elkaar)">⇄</button>
           <button data-act="verborgen" title="${m.verborgen ? "Terugzetten" : "Verbergen"}">${m.verborgen ? "↺" : "✕"}</button>
@@ -953,6 +1125,7 @@ if (!DATA) {
       return;
     }
     if (act === "push") return pushAuto(DATA.autos.find(c => c.id === id), knop);
+    if (act === "pm") return plusMinVenster(DATA.autos.find(c => c.id === id));
     if (act === "vgl") {
       VERGELIJK = VERGELIJK.includes(id) ? VERGELIJK.filter(x => x !== id) : [...VERGELIJK, id].slice(-3);
       return render();

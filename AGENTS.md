@@ -34,7 +34,7 @@ op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Ca
   dashboard en gaat 60 dagen naar `verkocht` in state.json (komt hij terug, dan is hij niet "nieuw" → geen dubbele melding).
   Lag de site plat (fout of bronbewaking), dan blijft de auto staan met de gegevens van de vorige run (tag "SITE OFFLINE").
   Advertenties met "verkocht/sold/gereserveerd" in de titel worden overgeslagen.
-- **Favorieten / verbergen / notities** staan alleen in de browser (localStorage `porsche-mijn`), niet in Python:
+- **Favorieten / verbergen / notities / eigen plus- en minpunten** (`plus`/`min`) staan alleen in de browser (localStorage `porsche-mijn`), niet in Python:
   verborgen auto's geven dus nog wel meldingen.
 - **Knop "Nu zoeken"** (dashboard): `knop.py` is een stdlib-hulpserver op 127.0.0.1:8911 (eigen launchd-agent, KeepAlive)
   die `tracker.py` start. Alleen Origin `null` (file://) of geen Origin mag een run starten. Een slot (`tracker.lock`, flock)
@@ -76,6 +76,13 @@ het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerd
 - **Koopmoment** (dashboard, `koopmoment()`): per kalendermaand de mediaan-vraagprijs t.o.v. het gemiddelde per segment;
   zinvol na ±1 jaar data.
 - **Prijsgrafiekje** op de kaart vanaf 2 prijzen (`priceBlock()`).
+- **Plus/min-analyse** (knop ± op de kaart, `analyse()` + `plusMinVenster()` in het dashboard): plus- en minpunten met
+  een gewicht (prijs t.o.v. markt, bak, waardebehoud, km/jaar, vlaggen, import, BIV, afschrijving, ...) → saldo → eindoordeel
+  (≥5 sterke kandidaat, ≥2 interessant, ≥−1 twijfelgeval, anders eerder afraden). Opties (`OPTIES`, gewicht voor restwaarde):
+  aanwezig / standaard op deze uitvoering (`standaard()`: Sport Chrono + sportuitlaat op 991/992 GTS, Sport Chrono op Turbo S,
+  PCCB op 991/992 Turbo S, achterasbesturing op 991 Turbo/Turbo S) / niet vermeld (= navragen, niet "afwezig").
+  Plus een lijst "bij bezichtiging nakijken" per type (dak, koppeling/PDK, Mezger-koelleidingen, PCCB). Eigen punten
+  (`plus`/`min` in localStorage) tellen niet mee in het oordeel; ze staan ook in de vergelijking.
 - **Kleur** (`kleur_uit()`, groepen in `KLEUREN`): AutoScout24 uit de link (`...-wit-cat_...`), exacte Porsche-naam
   (`kleur_naam`, bv. "Carrara White") uit de detailpagina; andere sites uit de titel. Dashboard: kleurknoppen (meerkeuze),
   bolletje + naam op de kaart, ook in zoekprofielen (`kleuren`).
