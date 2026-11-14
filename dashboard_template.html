@@ -1084,7 +1084,10 @@ async function zoekStatus() {
     profielBalk(); render();
   }
   // klaar = het dashboard is herschreven na het begin van de run (of de run is gestopt zonder resultaat)
-  if (zoekStart && st.bijgewerkt && Date.parse(st.bijgewerkt) >= zoekStart) return location.reload();
+  if (zoekStart && st.bijgewerkt && Date.parse(st.bijgewerkt) >= zoekStart) {
+    try { sessionStorage.setItem("porsche-scroll", String(scrollY)); } catch {}  // na herladen op dezelfde plek blijven
+    return location.reload();
+  }
   if (zoekStart && !st.bezig && Date.now() - zoekStart > 20000) zoekStart = null;
   const loopt = st.bezig || !!zoekStart;
   b.disabled = loopt;
@@ -1183,6 +1186,15 @@ if (!DATA) {
     render();
   });
   render();
+  try {  // terug naar de plek van vóór "Nu zoeken" (de kaarten bestaan pas na render)
+    const y = sessionStorage.getItem("porsche-scroll");
+    if (y) {
+      sessionStorage.removeItem("porsche-scroll");
+      history.scrollRestoration = "manual";  // anders zet de browser na het laden zelf terug naar boven
+      scrollTo(0, +y);
+      addEventListener("load", () => scrollTo(0, +y), { once: true });
+    }
+  } catch {}
 }
 </script>
 </body>
