@@ -447,7 +447,7 @@ function recenteDaling(c) {
 function gezaktBlok() {
   const lijst = DATA.autos.map(c => [c, recenteDaling(c)]).filter(([, d]) => d)
     .sort(([, a], [, b]) => b.op.localeCompare(a.op));
-  $("gezakt").innerHTML = lijst.length ? `<details class="gezakt" open><summary>↓ ${lijst.length} prijsdaling${lijst.length === 1 ? "" : "en"} in de laatste 7 dagen</summary><ul>${lijst.map(([c, d]) =>
+  $("gezakt").innerHTML = lijst.length ? `<details class="gezakt"><summary>↓ ${lijst.length} prijsdaling${lijst.length === 1 ? "" : "en"} in de laatste 7 dagen</summary><ul>${lijst.map(([c, d]) =>
     `<li><a href="#" data-naar="${esc(c.id)}">${esc(c.model)} ${esc(c.type)} ${esc(c.generatie)} ${c.jaar}, ${c.km.toLocaleString("nl-BE")} km</a>
      · ${fmt(d.van)} → <b>${fmt(d.naar)}</b> (−${fmt(d.van - d.naar)}, −${String(d.pct).replace(".", ",")}%)
      · ${dmy(d.op)} · score ${c.score}</li>`).join("")}</ul></details>` : "";
