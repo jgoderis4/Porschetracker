@@ -5,7 +5,7 @@ in HTML; "Toon meer" doet een POST naar /frontend/ajax met de filter in de sessi
 dus met enkel GET onbruikbaar. Daarom splitsen we op showroom (companyLocations)
 en sorteren we op prijs oplopend + aflopend: zo komen tot 24 wagens per showroom
 boven. Km, inschrijving, pk, CO2 en bak staan enkel op de detailpagina; die halen
-we alleen op voor 911 GTS/Turbo.
+we alleen op voor 911 GTS/Turbo/4S.
 """
 import html
 import re
@@ -82,8 +82,8 @@ def fetch(get):
         if not model:
             raise RuntimeError("DCT: wagenkaart zonder titel (structuur gewijzigd?)")
         titel = (_tekst(model.group(1)) + " " + _tekst(sub.group(1) if sub else "")).strip()
-        # Voorfilter: enkel 911-familie met GTS of Turbo (fijnere filter zit in tracker.py)
-        if not re.search(r"911|99[127]", titel) or not re.search(r"gts|turbo", titel.lower()):
+        # Voorfilter: enkel 911-familie met GTS, Turbo of 4S (fijnere filter zit in tracker.py)
+        if not re.search(r"911|99[127]", titel) or not re.search(r"gts|turbo|4\s*s\b", titel.lower()):
             continue
         if len(cars) >= MAX_DETAILS:
             break

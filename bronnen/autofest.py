@@ -39,8 +39,8 @@ def fetch(get):
     for p in posts:
         titel = html.unescape(p.get("title", {}).get("rendered", "")).strip()
         tl = titel.lower()
-        # voorfilter: enkel 911-familie met gts/turbo, pas dan de detailpagina ophalen
-        if "porsche" not in tl or not re.search(r"911|99[127]", tl) or not re.search(r"gts|turbo", tl):
+        # voorfilter: enkel 911-familie met gts/turbo/4s, pas dan de detailpagina ophalen
+        if "porsche" not in tl or not re.search(r"911|99[127]", tl) or not re.search(r"gts|turbo|4\s*s\b", tl):
             continue
         if len(cars) >= 25:
             break  # beleefd blijven

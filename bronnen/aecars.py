@@ -40,9 +40,9 @@ def fetch(get):
     for x in lijst:
         titel = re.sub(r"\s+", " ", html.unescape(x["title"]["rendered"])).strip()
         tl = (titel + " " + x["slug"]).lower()
-        # enkel 911 GTS/Turbo, open dak, 997 of nieuwer: de site geeft "429 Too Many Requests"
+        # enkel 911 GTS/Turbo/4S, open dak, 997 of nieuwer: de site geeft "429 Too Many Requests"
         # als we te veel detailpagina's na elkaar ophalen, dus coupés en oudere generaties overslaan
-        if not re.search(r"911|99[127]", tl) or not re.search(r"gts|turbo", tl):
+        if not re.search(r"911|99[127]", tl) or not re.search(r"gts|turbo|4\s*s\b", tl):
             continue
         if not re.search(r"cabr|targa", tl) or re.search(r"\b(930|964|993|996)\b", tl):
             continue

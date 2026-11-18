@@ -43,14 +43,36 @@ class Herkenning(unittest.TestCase):
                     ("911 Carrera 4 GTS Cabriolet", 480, 2022, ("GTS", "992")),
                     ("911 Turbo Cabriolet", 520, 2014, ("Turbo", "991.1")),
                     ("911 Turbo S Cabriolet", 580, 2017, ("Turbo S", "991.2")),
-                    ("911 Turbo S Cabriolet", 650, 2021, ("Turbo S", "992"))]
+                    ("911 Turbo S Cabriolet", 650, 2021, ("Turbo S", "992")),
+                    ("911 Carrera 4S Cabriolet – 997.2 PDK", 385, 2010, ("4S", "997.2")),
+                    ("911 Carrera 4S Cabriolet", None, 2011, ("4S", "997.2")),
+                    ("911 Carrera 4S Cabriolet – 991.1 3.8i PDK", 400, 2014, ("4S", "991.1")),
+                    ("911 Carrera 4S Cabriolet – Powerkit", 430, 2015, ("4S", "991.1")),
+                    ("911 Targa 4S – Bose", None, 2015, ("4S", "991.1")),
+                    ("911 Carrera 4S Cabriolet – 991.2 3.0 PDK", 420, 2018, ("4S", "991.2")),
+                    ("911 Carrera 4S Cabriolet – Powerkit", 450, 2017, ("4S", "991.2")),
+                    ("911 Carrera 4S Cabriolet – 3.0 Turbo PDK", 450, 2021, ("4S", "992")),
+                    ("911 Carrera 4S Cabriolet – .2 C4S Cabrio", 420, 2017, ("4S", "991.2"))]
         for titel, pk, jaar, verwacht in gevallen:
             self.assertEqual(self.herken(titel, pk, jaar), verwacht, titel)
 
     def test_geen_echte_gts_of_turbo(self):
         for titel, pk, jaar in [("911 Carrera 3.0 Turbo Cabrio", 420, 2017), ("911 Carrera S 3.8 Turbo-look", 385, 2009),
-                                ("911 Turbo Cabriolet", None, 2009)]:
+                                ("911 Turbo Cabriolet", None, 2009),
+                                ("911 Carrera 4S Cabriolet – 997.1", 355, 2007),     # 997.1 4S: M97, bewust niet
+                                ("911 Carrera 4S Cabriolet", None, 2008),
+                                ("911 Carrera 4 Cabriolet – Sport Chrono", 385, 2010),  # Carrera 4 zonder S
+                                ("911 Carrera S Cabriolet", 420, 2018)]:
             self.assertEqual(self.herken(titel, pk, jaar), (None, None), titel)
+
+    def test_4s_biv_belasting_kost(self):
+        c = {"model": "4S", "generatie": "991.2", "manueel": False, "co2": None, "jaar": 2018, "maand": 6}
+        bedrag, co2, _ = t.biv(c)
+        self.assertEqual(co2, 191)
+        c["co2_gebruikt"] = co2
+        self.assertGreater(t.verkeersbelasting(c), 0)
+        self.assertEqual(len(t.features(dict(c, leeftijd_jr=8, km=50000, type="Cabrio"))),
+                         len(t.features(dict(c, model="GTS", leeftijd_jr=8, km=50000, type="Cabrio"))))
 
     def test_zelfde_auto(self):
         a = {"model": "GTS", "jaar": 2015, "km": 40000, "prijs": 110000}

@@ -1,6 +1,6 @@
-# Porsche GTS/Turbo tracker (porsche-tracker)
+# Porsche GTS/Turbo/4S tracker (porsche-tracker)
 
-Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS en Turbo (S), Cabriolet en Targa (997/991/992)
+Zoekt 2x per dag (08:00 en 18:00, via launchd) naar 2dehands Porsche 911 GTS, Turbo (S) en Carrera/Targa 4S, Cabriolet en Targa (997/991/992)
 op AutoScout24 (BE/NL/DE/LU), 2dehands.be en Belgische dealersites (Lampe, AE Cars (WordPress-API), DCT, Bavaria Motors, Autofest), en schrijft een dashboard met score + geschatte Vlaamse BIV.
 
 - `tracker.py` – ophalen, filteren, BIV, score, dashboard, Mac-melding (alleen stdlib, Python 3.9).
@@ -58,6 +58,15 @@ het kanaal komt via `ntfy_topic` in de payload alleen in het lokale, gegenereerd
 - Marktprijs (`features()`): een 997 krijgt een eigen niveau én eigen leeftijdseffect. De waardecurve neemt de 997 gewoon mee
   (nieuwprijs in config.json); die vlakt bij hoge leeftijd vanzelf af.
 - AutoScout24 wordt per periode (≤2013 / ≥2014) bevraagd; kmto = de ruimste grens, het echte km-filter gebeurt per generatie.
+
+## Carrera 4S / Targa 4S (toegevoegd nov. 2026)
+- Model `"4S"` (`ECHTE_4S` in tracker.py; GTS en Turbo gaan voor). Generaties via pk: 997.2 = 385, 991.1 = 400 (430 Powerkit),
+  991.2 = 420 (450 Powerkit), 992 = 450 (vanaf 2019); anders op bouwjaar.
+- **997.1 4S (355 pk, M97-motor) bewust niet**: `model()` geeft None bij pk buiten 380–480 of zonder pk t/m bouwjaar 2008.
+- AutoScout24: `57||70|4S` (body Cabrio) + `57||70|Targa 4S` (alle periodes, ook ≤2013: Targa 4S bestaat al in de 997).
+  Marktstaal laat de 992.2 4S (480 pk) weg. 2dehands: extra zoekterm "4s"; dealer-voorfilters op `gts|turbo|4\s*s\b`.
+- config.json: `4S` in `fiscale_pk`, `nieuwprijs` (indicatief) en `co2_standaard` (manueel/PDK). `features()` heeft een 4S-indicator;
+  `atmo_991_1` geldt ook voor de 997.2/991.1 4S.
 
 ## Vlaggen, opnieuw te koop, zoekprofielen, koopmoment
 - **Vlaggen** (`vlaggen()`): rood (ongeval, schade, hagel, motor/bak, US-import, zonder keuring/export, 5+ eigenaars) en
@@ -127,3 +136,7 @@ Bewuste beslissingen: niet "verbeteren" zonder dat te vragen.
   geeft extra reeksen met `type` (zelfde curve per model, eigen ijking). `markt_punt()` bewaart ook `model|gen|type`
   (sinds 31/10/2026), `verkoopsnelheid()` ook `type|model|gen(|bak)`. Dashboard: keuzelijst "Type" in Marktevolutie.
 - Verborgen auto's (dashboard, localStorage) komen vanzelf terug als hun prijs lager is dan bij het verbergen (`verborgen_prijs`).
+
+- **Porsche-tab op de Pi**: de prijs-tracker (`../prijs-tracker`) kopieert `dashboard.html` elk halfuur naar de Raspberry Pi
+  en toont het in een tab van zijn portaal (http://192.168.0.130:8420/?tab=porsche). Het dashboard moet dus zelfstandig
+  blijven werken als losse pagina (geen lokale bestanden nodig behalve zichzelf).

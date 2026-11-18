@@ -46,10 +46,10 @@ def fetch(get):
     kaarten = _kaarten(get(STOCK))
     if not kaarten:
         raise RuntimeError("Bavaria Motors: geen wagens gevonden op de stockpagina (structuur gewijzigd?)")
-    # voorfilter op de titel: Porsche 911/997/991/992 met GTS of Turbo
+    # voorfilter op de titel: Porsche 911/997/991/992 met GTS, Turbo of 4S
     kandidaten = [(wid, k) for wid, k in kaarten.items()
                   if re.search(r"porsche", k["titel"], re.I) and re.search(r"\b(911|99[127])", k["titel"])
-                  and re.search(r"gts|turbo", k["titel"], re.I)]
+                  and re.search(r"gts|turbo|4\s*s\b", k["titel"], re.I)]
     cars = []
     for wid, k in kandidaten[:MAX_DETAILS]:
         time.sleep(1)
